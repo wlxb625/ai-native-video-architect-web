@@ -1,3 +1,9 @@
 # Build status
 
-This file records that the independent rebuild must pass type checking and a production Next.js build before it replaces `main`.
+The independent rebuild has passed:
+
+- dependency installation;
+- TypeScript type checking;
+- Next.js production build.
+
+Validated by GitHub Actions after commit `7aba819e14cb4329bb3a8fb290f76674aa180668`.
