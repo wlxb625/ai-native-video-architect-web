@@ -1,57 +1,68 @@
-# CineWeave Graph Studio
+# CineWeave Media Studio
 
-面向 AI 影视创作的前后端分离工作台。核心不是“在浏览器里画几个节点”，而是把画布、资产、模型调用和生成任务变成可持久化、可审计、可恢复的图工作流。
+面向 AI 影视创作的媒体生成画布。前台以剧本、人物、场景、分镜、图片和视频为主体；Agent 在后台调用 Skills 完成剧本生成、分析、拆解、分镜规划和连续性检查。
 
-## 架构
+## 产品边界
 
-- `apps/web`：React + TypeScript + Vite + XYFlow 无限画布
-- `apps/api`：Fastify REST API，负责鉴权、权限、画布与资产数据
-- `apps/worker`：独立任务执行器，从 PostgreSQL 领取 Graph Run
-- `packages/graph-runtime`：GraphEngineering Graph IR 适配层与兼容执行器
-- `packages/contracts`：前后端共享 Zod 契约
-- `infra/postgres`：数据库迁移
+这不是 Coze 或 Dify 式逻辑流程编辑器。用户看到的是素材和生成血缘：
 
-GraphEngineering 上游目前是 source-only alpha，因此本项目默认使用 Graph IR 兼容执行器；执行 `npm run graph:setup` 后，可以通过环境变量切换到本地构建的原生 Runtime。业务数据、权限和密钥加密不依赖上游 alpha 能力。
-
-## 快速启动
-
-```bash
-cp .env.example .env
-# 生成 32 字节主密钥：openssl rand -base64 32
-# 将结果写入 APP_MASTER_KEY_BASE64
-
-docker compose up --build
+```text
+剧本 / 人物 / 场景 / 参考图
+              ↓
+             分镜
+              ↓
+          图片生成任务
+              ↓
+          图片候选版本
+              ↓
+          视频生成任务
+              ↓
+          视频候选版本
 ```
 
-打开：
+GraphEngineering 只用于后台 Agent 与生成任务编排，不作为前台画布的产品模型。
 
-- Web: `http://localhost:8080`
-- API: `http://localhost:8780`
-- API 健康检查: `http://localhost:8780/health`
+## Monorepo
 
-本地开发：
+- `apps/web`：React + TypeScript + XYFlow 媒体无限画布
+- `apps/api`：Fastify REST API、鉴权、权限、画布和任务接口
+- `apps/worker`：Graph Run Worker、LLM Skill 执行和 Provider Adapter
+- `packages/contracts`：前后端共享 Zod 契约
+- `packages/agent-skills`：剧本和影视生产 Skills 注册表
+- `packages/graph-runtime`：GraphEngineering Graph IR 适配层
+- `infra/postgres`：PostgreSQL 迁移
+
+## 快速预览
+
+只看前端交互：
 
 ```bash
 npm install
-npm run db:migrate
-npm run dev
+npm -w @cineweave/contracts run build
+npm -w @cineweave/web run dev
 ```
 
-## 数据存储原则
+打开 `http://localhost:5173`，点击“先查看交互演示”。演示模式包含图片、视频、分镜、资产库、右键生成和 Agent Skills 写回画布。
 
-画布项目数据不存入 `localStorage`。节点、连线、视口、资产、Graph IR、运行事件和审计记录均存入 PostgreSQL。浏览器只保存非敏感偏好；访问令牌只驻留内存，刷新令牌使用 `HttpOnly + SameSite=Strict` Cookie。
+完整启动：
 
-## 安全边界
+```bash
+cp .env.example .env
+# 设置 ACCESS_TOKEN_SECRET 和 APP_MASTER_KEY_BASE64
+docker compose up --build
+```
 
-此工程提供生产基线，不宣称“绝对安全”。上线前仍需配置 TLS、数据库备份、密钥轮换、基础设施最小权限和外呼网络策略。详见：
+- Web：`http://localhost:8080`
+- API：`http://localhost:8780`
 
-- [安全设计](docs/SECURITY.md)
-- [威胁模型](docs/THREAT_MODEL.md)
-- [数据模型](docs/DATA_MODEL.md)
-- [GraphEngineering 接入](docs/GRAPHENGINEERING.md)
-- [API](docs/API.md) / [OpenAPI](docs/openapi.yaml)
-- [实现状态](docs/IMPLEMENTATION_STATUS.md)
+## 数据与安全
 
-## 许可证说明
+画布、节点、连线、生成任务、Agent 运行事件和审计记录存入 PostgreSQL。访问令牌短时存在内存，刷新令牌使用 HttpOnly Cookie；模型密钥在服务端使用 AES-256-GCM 加密。媒体文件正式环境应存入 S3、OSS、COS 或 MinIO，数据库仅保存对象地址、哈希、元数据和生成血缘。
 
-本项目代码为原创实现。GraphEngineering 通过可选的 Git 子模块/本地源码接入，遵循其 MIT License；DramaClaw 仅用于产品交互研究，没有复制其源码。参见 `THIRD_PARTY_NOTICES.md`。
+## Provider Adapter
+
+- LLM：OpenAI-compatible Chat Completions
+- 图片：OpenAI-compatible `/images/generations`
+- 视频：供应商接口不统一，需要专用 Adapter
+
+详见 `docs/AGENT_SKILLS.md`、`docs/SECURITY.md` 和 `docs/API.md`。
