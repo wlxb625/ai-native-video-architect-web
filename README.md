@@ -16,6 +16,8 @@
 - 系统架构和功能范围文档；
 - GitHub Actions 类型检查和生产构建。
 
+当前改动通过草稿 PR 审阅，不会直接覆盖 `main`。
+
 ## 技术基线
 
 - Next.js 16 App Router
