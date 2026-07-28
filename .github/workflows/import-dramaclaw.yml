@@ -1,7 +1,7 @@
 name: Import DramaClaw Upstream
 
 on:
-  push:
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
