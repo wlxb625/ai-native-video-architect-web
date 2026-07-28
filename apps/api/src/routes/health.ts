@@ -1,0 +1,1 @@
+import type{FastifyInstance}from'fastify';import{db}from'../db.js';export async function healthRoutes(app:FastifyInstance){app.get('/health',async()=>{await db.query('SELECT 1');return{status:'ok',service:'cineweave-api',time:new Date().toISOString()};});}
