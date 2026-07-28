@@ -1,18 +1,19 @@
 # AI Native Film Studio Web
 
-面向中文创作者的可视化 AI 影视生产工作台。
+一个从零自主开发的可视化 AI 影视生产工作台。
 
-本项目采用自主架构开发，不基于 DramaClaw 源码进行二次开发。产品层面会吸收无限画布、资产复用、异步任务和镜头验收等通用思路，但数据模型、工作流、界面和实现均重新设计。
+项目以无限画布为核心，将创意、剧本、角色、场景、分镜、生成任务、镜头验收和成片组织在同一个可追踪的项目空间中。它不是把聊天框套在模型接口外面，而是让每次 AI 输出都落到可编辑、可连接、可版本化的数据节点里。
 
-## 当前阶段
+## 当前原型
 
-第一阶段建立可运行的无限画布原型与系统架构：
+`independent-rebuild` 分支已经建立第一版可运行骨架：
 
-- 影视语义节点；
-- 节点连接与项目关系；
-- 创作视图和生产视图；
-- 节点状态、进度和检查信息；
-- 后续数据库、AI 模型与异步任务的接口边界。
+- React Flow 无限画布；
+- 影视语义节点与连线；
+- 创作、生产和全部三种视图；
+- 节点状态、进度和详情检查；
+- 可新增节点的工具栏；
+- 系统架构和功能范围文档。
 
 ## 技术基线
 
@@ -20,29 +21,21 @@
 - React 19
 - TypeScript
 - React Flow
-- CSS Variables
+- 原生 CSS Variables
 
-规划中的服务端能力：
-
-- Supabase：登录、PostgreSQL、RLS 与实时数据；
-- Trigger.dev：长时间生成任务、重试和实时进度；
-- S3 兼容对象存储：图片、视频、音频和导出文件；
-- 模型适配层：文本、生图、生视频、语音模型统一接口。
+服务端规划：Supabase、Trigger.dev、S3 兼容对象存储以及自研模型适配层。
 
 ## 本地运行
 
 ```bash
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
-访问 `http://localhost:3000`。
+浏览器访问 `http://localhost:3000`。
 
 ## 文档
 
-- [系统架构](docs/ARCHITECTURE.md)
+- [整体架构](docs/ARCHITECTURE.md)
 - [主要功能](docs/FEATURES.md)
-
-## 分支说明
-
-`independent-rebuild` 是自主开发分支。确认架构和首个可运行版本后，再替换当前 `main`。
+- [自主开发说明](docs/INDEPENDENCE.md)

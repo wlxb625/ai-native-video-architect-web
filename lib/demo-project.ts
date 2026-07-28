@@ -1,0 +1,123 @@
+import type { StudioEdge, StudioNode } from "@/lib/studio-types";
+
+export const initialNodes: StudioNode[] = [
+  {
+    id: "idea-1",
+    type: "idea",
+    position: { x: 40, y: 80 },
+    data: {
+      kind: "idea",
+      label: "核心概念",
+      summary: "修复铜镜的女人逐渐失去自己的面孔。",
+      status: "approved",
+      version: "V02",
+      details: { 核心问题: "她愿意用什么交换被修复的人生？", 时长: "90 秒" },
+    },
+  },
+  {
+    id: "script-1",
+    type: "script",
+    position: { x: 340, y: 55 },
+    data: {
+      kind: "script",
+      label: "剧本 · 场景 03",
+      summary: "第一次擦拭铜镜，铜锈下露出一只闭合的眼睛。",
+      status: "approved",
+      version: "V05",
+      details: { 地点: "修镜作坊", 时间: "雨夜", 退出状态: "镜中眼睛仍闭合" },
+    },
+  },
+  {
+    id: "character-1",
+    type: "character",
+    position: { x: 655, y: 10 },
+    data: {
+      kind: "character",
+      label: "角色 · 女修镜匠",
+      summary: "身份主参考已锁定，围裙污痕和发型保持连续。",
+      status: "approved",
+      version: "A01",
+      details: { 身份参考: "已锁定", 当前状态: "状态 A", 被引用: "8 个镜头" },
+    },
+  },
+  {
+    id: "scene-1",
+    type: "scene",
+    position: { x: 655, y: 220 },
+    data: {
+      kind: "scene",
+      label: "场景 · 修镜作坊",
+      summary: "雨窗位于北侧，主光从画面左后方进入。",
+      status: "approved",
+      version: "S01",
+      details: { 空镜: "已锁定", 主光方向: "左后方", 被引用: "6 个镜头" },
+    },
+  },
+  {
+    id: "shot-1",
+    type: "shot",
+    position: { x: 970, y: 115 },
+    data: {
+      kind: "shot",
+      label: "SHOT 03",
+      summary: "100mm 微距，旧布擦过镜面，闭眼从铜锈下显露。",
+      status: "ready",
+      progress: 100,
+      version: "SH03",
+      details: { 时长: "5 秒", 生成模式: "首尾帧", 控制帧: "2 / 2" },
+    },
+  },
+  {
+    id: "generation-1",
+    type: "generation",
+    position: { x: 1270, y: 105 },
+    data: {
+      kind: "generation",
+      label: "视频生成 V03",
+      summary: "正在生成镜面细节和稳定尾帧。",
+      status: "running",
+      progress: 68,
+      version: "V03",
+      details: { 模型: "Provider A", 队列: "运行中", 预计输出: "1920 × 1080" },
+    },
+  },
+  {
+    id: "review-1",
+    type: "review",
+    position: { x: 1270, y: 330 },
+    data: {
+      kind: "review",
+      label: "镜头验收",
+      summary: "人物和道具通过，尾帧未准确抵达目标姿势。",
+      status: "needs-review",
+      progress: 72,
+      version: "R03",
+      details: { 身份一致: "通过", 手部: "通过", 尾帧: "需修复" },
+    },
+  },
+  {
+    id: "timeline-1",
+    type: "timeline",
+    position: { x: 970, y: 405 },
+    data: {
+      kind: "timeline",
+      label: "成片时间线",
+      summary: "3 / 14 个镜头已通过并进入时间线。",
+      status: "draft",
+      progress: 21,
+      version: "CUT 01",
+      details: { 当前时长: "18 秒", 目标时长: "90 秒", 已通过镜头: "3 / 14" },
+    },
+  },
+];
+
+export const initialEdges: StudioEdge[] = [
+  { id: "e1", source: "idea-1", target: "script-1", animated: true },
+  { id: "e2", source: "script-1", target: "character-1" },
+  { id: "e3", source: "script-1", target: "scene-1" },
+  { id: "e4", source: "character-1", target: "shot-1" },
+  { id: "e5", source: "scene-1", target: "shot-1" },
+  { id: "e6", source: "shot-1", target: "generation-1", animated: true },
+  { id: "e7", source: "generation-1", target: "review-1" },
+  { id: "e8", source: "review-1", target: "timeline-1", animated: true },
+];
