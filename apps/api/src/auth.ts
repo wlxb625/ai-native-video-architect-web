@@ -1,1 +1,28 @@
-import type{FastifyInstance,FastifyRequest}from'fastify';import{db}from'./db.js';export async function requireAuth(request:FastifyRequest){await request.jwtVerify();request.authUser={id:request.user.sub,email:request.user.email};}export async function assertProjectOwner(userId:string,projectId:string){const result=await db.query('SELECT id FROM projects WHERE id=$1 AND owner_id=$2',[projectId,userId]);if(result.rowCount!==1){const error=new Error('Project not found');(error as Error&{statusCode?:number}).statusCode=404;throw error;}}export function registerAuthHook(app:FastifyInstance){app.decorateRequest('authUser',null);}
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { db } from './db.js';
+
+export async function requireAuth(request: FastifyRequest) {
+  await request.jwtVerify();
+  request.authUser = {
+    id: request.user.sub,
+    email: request.user.email,
+  };
+}
+
+export async function assertProjectOwner(userId: string, projectId: string) {
+  const result = await db.query(
+    'SELECT id FROM projects WHERE id=$1 AND owner_id=$2',
+    [projectId, userId],
+  );
+  if (result.rowCount !== 1) {
+    const error = new Error('Project not found') as Error & {
+      statusCode?: number;
+    };
+    error.statusCode = 404;
+    throw error;
+  }
+}
+
+export function registerAuthHook(app: FastifyInstance) {
+  app.decorateRequest('authUser', undefined);
+}
