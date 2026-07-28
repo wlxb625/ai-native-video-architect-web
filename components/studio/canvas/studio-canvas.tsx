@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   addEdge,
   Background,
@@ -53,20 +53,28 @@ interface StudioCanvasProps {
 export function StudioCanvas({ view, onViewChange, onNodeSelect, createRequest }: StudioCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<StudioNode>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  const [handledNonce, setHandledNonce] = useState(0);
+  const handledNonce = useRef(0);
 
-  if (createRequest && createRequest.nonce !== handledNonce) {
-    const { kind, nonce } = createRequest;
-    const defaults = newNodeDefaults[kind];
-    const nextNode: StudioNode = {
-      id: `${kind}-${Date.now()}`,
-      type: kind,
-      position: { x: 260 + nodes.length * 36, y: 120 + (nodes.length % 4) * 120 },
-      data: { kind, ...defaults, version: "V01" },
-    };
-    setHandledNonce(nonce);
-    setNodes((current) => [...current, nextNode]);
-  }
+  useEffect(() => {
+    if (!createRequest || createRequest.nonce === handledNonce.current) {
+      return;
+    }
+
+    handledNonce.current = createRequest.nonce;
+
+    setNodes((current) => {
+      const { kind } = createRequest;
+      const defaults = newNodeDefaults[kind];
+      const nextNode: StudioNode = {
+        id: `${kind}-${createRequest.nonce}`,
+        type: kind,
+        position: { x: 260 + current.length * 36, y: 120 + (current.length % 4) * 120 },
+        data: { kind, ...defaults, version: "V01" },
+      };
+
+      return [...current, nextNode];
+    });
+  }, [createRequest, setNodes]);
 
   const onConnect = useCallback(
     (connection: Connection) => setEdges((current) => addEdge({ ...connection, animated: true }, current)),
