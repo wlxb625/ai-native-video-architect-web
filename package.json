@@ -1,7 +1,7 @@
 {
-  "name": "cineweave-graph-studio",
+  "name": "cineweave-media-studio",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
@@ -12,9 +12,12 @@
     "db:migrate": "npm -w @cineweave/api run db:migrate",
     "graph:setup": "bash scripts/setup-graph-engineering.sh",
     "graph:validate": "node scripts/validate-graph-ir.mjs graphs/next-step.graph.json",
-    "build:packages": "npm -w @cineweave/contracts run build && npm -w @cineweave/graph-runtime run build",
+    "build:packages": "npm -w @cineweave/contracts run build && npm -w @cineweave/agent-skills run build && npm -w @cineweave/graph-runtime run build",
     "predev": "npm run build:packages"
   },
-  "engines": {"node": ">=20"},
-  "devDependencies": {"concurrently": "^9.1.2", "typescript": "~5.8.3"}
+  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "~5.8.3"
+  }
 }
