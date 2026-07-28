@@ -1,0 +1,9 @@
+export interface GraphPortRef{node:string;port?:string}
+export interface GraphNode{id:string;kind:string;inputSchema?:Record<string,unknown>;outputSchema?:Record<string,unknown>;config?:Record<string,unknown>;sideEffects?:'none'|'idempotent'|'non-idempotent'|string;retry?:{maxAttempts?:number;backoffMs?:number};timeoutMs?:number}
+export interface GraphEdge{id:string;from:GraphPortRef;to:GraphPortRef;mode?:string}
+export interface GraphIR{apiVersion:string;kind:'Graph';metadata:{name:string;version:string;description?:string};entrypoints:string[];outputs:Record<string,GraphPortRef>;nodes:GraphNode[];edges:GraphEdge[];policies?:{maxConcurrency?:number;maxTotalAttempts?:number;maxDepth?:number;maxFanOut?:number}}
+export interface NodeExecutorContext{runId:string;node:GraphNode;input:Record<string,unknown>;signal:AbortSignal;attempt:number}
+export type NodeExecutor=(context:NodeExecutorContext)=>Promise<unknown>|unknown;
+export interface GraphEvent{type:string;nodeId?:string;attempt?:number;payload?:Record<string,unknown>;timestamp:string}
+export interface RunOptions{runId:string;nodeExecutors:Record<string,NodeExecutor>;onEvent?:(event:GraphEvent)=>Promise<void>|void;maxConcurrency?:number}
+export interface RunResult{status:'succeeded'|'failed';output:Record<string,unknown>;error?:string;maxObservedConcurrency:number}

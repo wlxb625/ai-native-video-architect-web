@@ -1,0 +1,12 @@
+{
+  "name": "@cineweave/contracts",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {".": "./dist/index.js"},
+  "scripts": {"build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit"},
+  "dependencies": {"zod": "^4.0.0"},
+  "devDependencies": {"typescript": "~5.8.3"}
+}

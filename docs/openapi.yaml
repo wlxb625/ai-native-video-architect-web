@@ -1,0 +1,124 @@
+openapi: 3.1.0
+info:
+  title: CineWeave Graph Studio API
+  version: 0.3.0
+servers:
+  - url: http://localhost:8780/v1
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    CanvasSnapshot:
+      type: object
+      required: [version, viewport, nodes, edges]
+      properties:
+        version: { type: integer, minimum: 0 }
+        viewport:
+          type: object
+          required: [x, y, zoom]
+          properties:
+            x: { type: number }
+            y: { type: number }
+            zoom: { type: number, minimum: 0.05, maximum: 4 }
+        nodes: { type: array, items: { type: object } }
+        edges: { type: array, items: { type: object } }
+paths:
+  /auth/register:
+    post:
+      summary: Register and create a refresh session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, displayName]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 10 }
+                displayName: { type: string }
+      responses:
+        '201': { description: Registered }
+  /auth/login:
+    post:
+      summary: Login
+      responses:
+        '200': { description: Authenticated }
+        '401': { description: Invalid credentials }
+  /auth/refresh:
+    post:
+      summary: Rotate refresh session and issue an access token
+      responses:
+        '200': { description: Refreshed }
+  /projects:
+    get:
+      security: [{ bearerAuth: [] }]
+      summary: List owned projects
+      responses:
+        '200': { description: Project list }
+    post:
+      security: [{ bearerAuth: [] }]
+      summary: Create project and canvas
+      responses:
+        '201': { description: Created }
+  /projects/{projectId}/canvas:
+    parameters:
+      - in: path
+        name: projectId
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      security: [{ bearerAuth: [] }]
+      summary: Load canvas snapshot
+      responses:
+        '200': { description: Snapshot }
+    put:
+      security: [{ bearerAuth: [] }]
+      summary: Transactionally save canvas snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CanvasSnapshot' }
+      responses:
+        '200': { description: New canvas version }
+        '409': { description: Version conflict }
+  /projects/{projectId}/runs/next-step:
+    post:
+      security: [{ bearerAuth: [] }]
+      summary: Enqueue the GraphEngineering next-step workflow
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '202': { description: Graph run queued }
+  /runs/{runId}/events:
+    get:
+      security: [{ bearerAuth: [] }]
+      summary: Stream Graph Run events using SSE
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Event stream
+          content:
+            text/event-stream: {}
+  /providers/{provider}:
+    put:
+      security: [{ bearerAuth: [] }]
+      summary: Encrypt and store a provider credential
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Saved without returning the API key }

@@ -1,0 +1,26 @@
+{
+  "apiVersion": "graphengineering.reacher-z.github.io/v1alpha1",
+  "kind": "Graph",
+  "metadata": {"name": "cineweave-next-step", "version": "1.0.0", "description": "Expand a selected creative node, verify continuity, and persist a candidate"},
+  "inputSchema": {"type": "object", "required": ["projectId", "sourceNodeId", "instruction"]},
+  "outputSchema": {"type": "object"},
+  "entrypoints": ["normalize"],
+  "outputs": {"candidate": {"node": "persist-candidate"}},
+  "nodes": [
+    {"id": "normalize", "kind": "transform", "config": {"operation": "normalize-request"}, "sideEffects": "none"},
+    {"id": "load-story-context", "kind": "context", "config": {"source": "project-graph"}, "sideEffects": "none", "retry": {"maxAttempts": 2, "backoffMs": 300}, "timeoutMs": 10000},
+    {"id": "load-asset-context", "kind": "context", "config": {"source": "asset-library"}, "sideEffects": "none", "retry": {"maxAttempts": 2, "backoffMs": 300}, "timeoutMs": 10000},
+    {"id": "generate-candidate", "kind": "agent", "config": {"role": "creative-director"}, "sideEffects": "idempotent", "retry": {"maxAttempts": 2, "backoffMs": 700}, "timeoutMs": 90000},
+    {"id": "verify-continuity", "kind": "verifier", "config": {"checks": ["identity", "timeline", "location", "tone"]}, "sideEffects": "none", "timeoutMs": 30000},
+    {"id": "persist-candidate", "kind": "effect", "config": {"operation": "persist-canvas-node"}, "sideEffects": "idempotent", "retry": {"maxAttempts": 2, "backoffMs": 500}, "timeoutMs": 15000}
+  ],
+  "edges": [
+    {"id": "normalize-story", "from": {"node": "normalize"}, "to": {"node": "load-story-context", "port": "request"}, "mode": "value"},
+    {"id": "normalize-assets", "from": {"node": "normalize"}, "to": {"node": "load-asset-context", "port": "request"}, "mode": "value"},
+    {"id": "story-generate", "from": {"node": "load-story-context"}, "to": {"node": "generate-candidate", "port": "story"}, "mode": "value"},
+    {"id": "assets-generate", "from": {"node": "load-asset-context"}, "to": {"node": "generate-candidate", "port": "assets"}, "mode": "value"},
+    {"id": "generate-verify", "from": {"node": "generate-candidate"}, "to": {"node": "verify-continuity", "port": "candidate"}, "mode": "value"},
+    {"id": "verify-persist", "from": {"node": "verify-continuity"}, "to": {"node": "persist-candidate", "port": "verified"}, "mode": "value"}
+  ],
+  "policies": {"maxConcurrency": 2, "maxDynamicNodes": 0, "maxDepth": 8, "maxFanOut": 4, "maxTotalAttempts": 12}
+}
