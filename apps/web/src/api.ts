@@ -23,6 +23,20 @@ interface ApiErrorBody {
   message?: string;
 }
 
+export interface ProviderSummary {
+  provider: string;
+  base_url: string;
+  model: string;
+  key_version: number;
+  updated_at: string;
+}
+
+export interface ProviderCredentialInput {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
+
 export function setAccessToken(value: string | null): void {
   accessToken = value;
 }
@@ -129,6 +143,22 @@ export const api = {
     request<RunResponse>(`/projects/${projectId}/generations`, {
       method: 'POST',
       body: JSON.stringify(input),
+    }),
+
+  providers: () => request<{ providers: ProviderSummary[] }>('/providers'),
+
+  saveProvider: (provider: string, input: ProviderCredentialInput) =>
+    request<{ saved: true; provider: string; baseUrl: string; model: string }>(
+      `/providers/${encodeURIComponent(provider)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      },
+    ),
+
+  deleteProvider: (provider: string) =>
+    request<void>(`/providers/${encodeURIComponent(provider)}`, {
+      method: 'DELETE',
     }),
 
   async streamRunEvents(
