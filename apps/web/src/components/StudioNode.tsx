@@ -15,6 +15,8 @@ import {
   WandSparkles,
 } from 'lucide-react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { motion, useReducedMotion } from 'motion/react';
+import { generatedAssets } from '../generatedAssets';
 
 const labels: Record<string, string> = {
   script: '剧本',
@@ -46,8 +48,25 @@ const icons: Record<string, typeof FileText> = {
   note: FileText,
 };
 
+function fallbackPreview(type: string, data: Record<string, unknown>): string {
+  if (type === 'character') {
+    const title = String(data.title ?? '');
+    return title.includes('男') || title.includes('陈')
+      ? generatedAssets.characterMale
+      : generatedAssets.characterFemale;
+  }
+  if (type === 'scene' || type === 'referenceImage') {
+    return generatedAssets.sceneRainAlley;
+  }
+  if (['storyboard', 'imageOutput', 'videoOutput'].includes(type)) {
+    return generatedAssets.shotNeonDialogue;
+  }
+  return '';
+}
+
 function MediaPreview({ type, data }: { type: string; data: Record<string, unknown> }) {
-  const previewUrl = String(data.previewUrl ?? '');
+  const reduceMotion = useReducedMotion();
+  const previewUrl = String(data.previewUrl ?? '') || fallbackPreview(type, data);
   const previewStyle = String(data.previewStyle ?? '');
   const status = String(data.status ?? 'draft');
 
@@ -86,11 +105,21 @@ function MediaPreview({ type, data }: { type: string; data: Record<string, unkno
   if (type === 'imageGen' || type === 'videoGen') {
     return (
       <div className={`generation-preview ${status}`}>
-        {status === 'running' ? (
-          <LoaderCircle className="spin" size={24} />
-        ) : (
-          <Sparkles size={24} />
-        )}
+        <motion.div
+          className="generation-orbit"
+          animate={
+            reduceMotion || status !== 'running'
+              ? undefined
+              : { rotate: 360, scale: [1, 1.06, 1] }
+          }
+          transition={{ rotate: { duration: 5, repeat: Infinity, ease: 'linear' }, scale: { duration: 1.8, repeat: Infinity } }}
+        >
+          {status === 'running' ? (
+            <LoaderCircle className="spin" size={24} />
+          ) : (
+            <Sparkles size={24} />
+          )}
+        </motion.div>
         <strong>{status === 'running' ? '正在生成' : '等待生成'}</strong>
         <span>
           {String(
@@ -107,8 +136,10 @@ function MediaPreview({ type, data }: { type: string; data: Record<string, unkno
 
   if (type === 'videoOutput') {
     return (
-      <div
+      <motion.div
         className="media-preview video-preview"
+        whileHover={reduceMotion ? undefined : { scale: 1.012 }}
+        transition={{ duration: 0.18 }}
         style={
           previewUrl
             ? { backgroundImage: `url(${previewUrl})` }
@@ -119,7 +150,7 @@ function MediaPreview({ type, data }: { type: string; data: Record<string, unkno
           <Play size={20} fill="currentColor" />
         </button>
         <span>{String(data.duration ?? '5s')} · {String(data.ratio ?? '16:9')}</span>
-      </div>
+      </motion.div>
     );
   }
 
@@ -131,8 +162,10 @@ function MediaPreview({ type, data }: { type: string; data: Record<string, unkno
     type === 'storyboard'
   ) {
     return (
-      <div
+      <motion.div
         className={`media-preview ${type}-preview`}
+        whileHover={reduceMotion ? undefined : { scale: 1.012 }}
+        transition={{ duration: 0.18 }}
         style={
           previewUrl
             ? { backgroundImage: `url(${previewUrl})` }
@@ -148,7 +181,7 @@ function MediaPreview({ type, data }: { type: string; data: Record<string, unkno
           </span>
         )}
         {!previewUrl && !previewStyle && <ImageIcon size={25} />}
-      </div>
+      </motion.div>
     );
   }
 
