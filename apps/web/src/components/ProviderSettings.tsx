@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type ProviderSummary } from '../api';
+import './ProviderSettings.css';
 
 const ACTIVE_PROVIDER = 'gateway';
 
