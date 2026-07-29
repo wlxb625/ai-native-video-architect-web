@@ -7,53 +7,33 @@ import {
   ServerCog,
   Trash2,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, type ProviderSummary } from '../api';
 
-const providerPresets = [
-  {
-    id: 'llm',
-    label: '剧本与 Agent',
-    baseUrl: 'https://api.openai.com/v1',
-    model: 'gpt-5.6',
-  },
-  {
-    id: 'image',
-    label: '图片生成',
-    baseUrl: 'https://api.openai.com/v1',
-    model: 'gpt-image-1',
-  },
-  {
-    id: 'video',
-    label: '视频生成',
-    baseUrl: 'https://your-video-provider.example/v1',
-    model: 'your-video-model',
-  },
-] as const;
+const ACTIVE_PROVIDER = 'gateway';
 
 export function ProviderSettings() {
   const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
-  const [providers, setProviders] = useState<ProviderSummary[]>([]);
-  const [provider, setProvider] = useState('llm');
-  const [baseUrl, setBaseUrl] = useState(providerPresets[0].baseUrl);
-  const [model, setModel] = useState(providerPresets[0].model);
+  const [saved, setSaved] = useState<ProviderSummary>();
+  const [baseUrl, setBaseUrl] = useState('https://api.openai.com/v1');
+  const [model, setModel] = useState('gpt-5.6');
   const [apiKey, setApiKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const currentPreset = useMemo(
-    () => providerPresets.find((item) => item.id === provider) ?? providerPresets[0],
-    [provider],
-  );
-
-  const loadProviders = async () => {
+  const loadProvider = async () => {
     setError('');
     try {
       const response = await api.providers();
-      setProviders(response.providers);
+      const current = response.providers.find((item) => item.provider === ACTIVE_PROVIDER);
+      setSaved(current);
+      if (current) {
+        setBaseUrl(current.base_url);
+        setModel(current.model);
+      }
       setLoaded(true);
     } catch (cause) {
       setLoaded(true);
@@ -67,20 +47,9 @@ export function ProviderSettings() {
 
   useEffect(() => {
     if (open && !loaded) {
-      void loadProviders();
+      void loadProvider();
     }
   }, [open, loaded]);
-
-  const selectPreset = (id: string) => {
-    const preset = providerPresets.find((item) => item.id === id) ?? providerPresets[0];
-    setProvider(preset.id);
-    const saved = providers.find((item) => item.provider === preset.id);
-    setBaseUrl(saved?.base_url ?? preset.baseUrl);
-    setModel(saved?.model ?? preset.model);
-    setApiKey('');
-    setMessage('');
-    setError('');
-  };
 
   const save = async () => {
     if (!apiKey.trim()) {
@@ -91,14 +60,14 @@ export function ProviderSettings() {
     setError('');
     setMessage('');
     try {
-      await api.saveProvider(provider, {
+      await api.saveProvider(ACTIVE_PROVIDER, {
         apiKey: apiKey.trim(),
         baseUrl: baseUrl.trim(),
         model: model.trim(),
       });
       setApiKey('');
-      setMessage('配置已加密保存到服务端。');
-      await loadProviders();
+      setMessage('统一模型网关已加密保存到服务端。');
+      await loadProvider();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '保存失败');
     } finally {
@@ -110,8 +79,8 @@ export function ProviderSettings() {
     setBusy(true);
     setError('');
     try {
-      await api.deleteProvider(provider);
-      setProviders((items) => items.filter((item) => item.provider !== provider));
+      await api.deleteProvider(ACTIVE_PROVIDER);
+      setSaved(undefined);
       setMessage('配置已删除。');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '删除失败');
@@ -119,8 +88,6 @@ export function ProviderSettings() {
       setBusy(false);
     }
   };
-
-  const configured = providers.some((item) => item.provider === provider);
 
   return (
     <section className="provider-settings">
@@ -134,10 +101,10 @@ export function ProviderSettings() {
           <ServerCog size={15} />
         </span>
         <span>
-          <strong>模型 API</strong>
-          <small>{configured ? `${currentPreset.label}已配置` : '连接真实生成服务'}</small>
+          <strong>统一模型网关</strong>
+          <small>{saved ? `${saved.model} 已配置` : '连接真实 Agent 与媒体生成'}</small>
         </span>
-        {configured && <CheckCircle2 className="provider-ok" size={15} />}
+        {saved && <CheckCircle2 className="provider-ok" size={15} />}
         <ChevronDown className={open ? 'is-open' : ''} size={15} />
       </button>
 
@@ -150,20 +117,9 @@ export function ProviderSettings() {
             exit={reduceMotion ? undefined : { opacity: 0, height: 0 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="provider-kind-tabs">
-              {providerPresets.map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  className={provider === item.id ? 'active' : ''}
-                  onClick={() => selectPreset(item.id)}
-                >
-                  {item.label}
-                  {providers.some((saved) => saved.provider === item.id) && <i />}
-                </button>
-              ))}
+            <div className="provider-mode-note">
+              当前 Worker 使用一个 OpenAI-compatible 网关；生图和视频节点可以覆盖模型名称。独立 Provider 将在 Adapter 层接入。
             </div>
-
             <label>
               API Base URL
               <input
@@ -173,7 +129,7 @@ export function ProviderSettings() {
               />
             </label>
             <label>
-              模型名称
+              Agent 默认模型
               <input
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
@@ -189,7 +145,7 @@ export function ProviderSettings() {
                   value={apiKey}
                   onChange={(event) => setApiKey(event.target.value)}
                   autoComplete="new-password"
-                  placeholder={configured ? '重新输入后更新' : '仅发送到你的后端'}
+                  placeholder={saved ? '重新输入后更新' : '仅发送到你的后端'}
                 />
               </div>
             </label>
@@ -198,7 +154,7 @@ export function ProviderSettings() {
             {error && <div className="provider-message error">{error}</div>}
 
             <div className="provider-actions">
-              {configured && (
+              {saved && (
                 <button type="button" className="provider-delete" disabled={busy} onClick={remove}>
                   <Trash2 size={14} />删除
                 </button>
@@ -210,7 +166,7 @@ export function ProviderSettings() {
                 onClick={save}
               >
                 {busy && <LoaderCircle className="spin" size={14} />}
-                {configured ? '更新配置' : '保存配置'}
+                {saved ? '更新配置' : '保存配置'}
               </button>
             </div>
 
