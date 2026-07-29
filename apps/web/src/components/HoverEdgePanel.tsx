@@ -11,6 +11,23 @@ interface HoverEdgePanelProps {
   children: ReactNode;
 }
 
+function readStoredBoolean(key: string): boolean {
+  try {
+    return window.localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function readStoredWidth(key: string, fallback: number, min: number, max: number): number {
+  try {
+    const saved = Number(window.localStorage.getItem(key));
+    return Number.isFinite(saved) && saved >= min && saved <= max ? saved : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function HoverEdgePanel({
   side,
   storageKey,
@@ -21,21 +38,32 @@ export function HoverEdgePanel({
   children,
 }: HoverEdgePanelProps) {
   const [hovered, setHovered] = useState(false);
-  const [pinned, setPinned] = useState(() => localStorage.getItem(`${storageKey}:pinned`) === '1');
-  const [width, setWidth] = useState(() => {
-    const saved = Number(localStorage.getItem(`${storageKey}:width`));
-    return Number.isFinite(saved) && saved >= minWidth && saved <= maxWidth ? saved : defaultWidth;
-  });
-  const closeTimer = useRef<number>();
+  const [pinned, setPinned] = useState(() => readStoredBoolean(`${storageKey}:pinned`));
+  const [width, setWidth] = useState(() =>
+    readStoredWidth(`${storageKey}:width`, defaultWidth, minWidth, maxWidth),
+  );
+  const closeTimer = useRef<number | undefined>(undefined);
   const open = pinned || hovered;
 
   useEffect(() => {
-    localStorage.setItem(`${storageKey}:pinned`, pinned ? '1' : '0');
+    try {
+      window.localStorage.setItem(`${storageKey}:pinned`, pinned ? '1' : '0');
+    } catch {
+      // UI preferences may be unavailable in privacy-restricted browsers.
+    }
   }, [pinned, storageKey]);
 
   useEffect(() => {
-    localStorage.setItem(`${storageKey}:width`, String(width));
+    try {
+      window.localStorage.setItem(`${storageKey}:width`, String(width));
+    } catch {
+      // Keep the in-memory width even when preferences cannot be persisted.
+    }
   }, [storageKey, width]);
+
+  useEffect(() => () => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+  }, []);
 
   const enter = () => {
     if (closeTimer.current) window.clearTimeout(closeTimer.current);
@@ -49,7 +77,6 @@ export function HoverEdgePanel({
 
   const beginResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
     const startX = event.clientX;
     const startWidth = width;
     const onMove = (moveEvent: PointerEvent) => {
