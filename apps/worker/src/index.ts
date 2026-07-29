@@ -3,6 +3,7 @@ import { access, readFile } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDecipheriv, randomUUID } from 'node:crypto';
+import type { MediaGenerationRunInput } from '@cineweave/contracts';
 import {
   runGraphEngineering,
   type GraphEvent,
@@ -15,6 +16,10 @@ import {
   type MediaGenerationInput,
   type ProviderConfig,
 } from './mediaProviders.js';
+import {
+  composeGenerationPrompt,
+  type PromptComposerContext,
+} from './promptComposer.js';
 
 const { Pool } = pg;
 const databaseUrl = process.env.DATABASE_URL;
@@ -132,10 +137,7 @@ function decryptProviderRow(row: any): ProviderConfig {
   };
 }
 
-async function resolveProviderConfig(
-  userId: string,
-  preferred: Array<string | undefined>,
-): Promise<ProviderConfig> {
+async function providerRows(userId: string) {
   const stored = await db.query(
     `SELECT provider,base_url,model,ciphertext,iv,auth_tag,updated_at
      FROM provider_credentials
@@ -143,12 +145,22 @@ async function resolveProviderConfig(
      ORDER BY updated_at DESC`,
     [userId],
   );
-  const rows = stored.rows;
+  return stored.rows;
+}
+
+async function resolveProviderConfig(
+  userId: string,
+  preferred: Array<string | undefined>,
+  allowAnyStored = false,
+): Promise<ProviderConfig> {
+  const rows = await providerRows(userId);
   for (const name of preferred.filter(Boolean)) {
-    const row = rows.find((item) => String(item.provider).toLowerCase() === String(name).toLowerCase());
+    const row = rows.find(
+      (item) => String(item.provider).toLowerCase() === String(name).toLowerCase(),
+    );
     if (row) return decryptProviderRow(row);
   }
-  if (rows[0]) return decryptProviderRow(rows[0]);
+  if (allowAnyStored && rows[0]) return decryptProviderRow(rows[0]);
   return {
     provider: preferred.find(Boolean) ?? 'environment',
     baseUrl: process.env.MODEL_GATEWAY_BASE_URL,
@@ -161,22 +173,22 @@ async function callJsonModel({
   system,
   prompt,
   userId,
+  missingAsNull = false,
 }: {
   system: string;
   prompt: string;
   userId: string;
-}): Promise<Record<string, any>> {
+  missingAsNull?: boolean;
+}): Promise<Record<string, any> | null> {
   const provider = await resolveProviderConfig(userId, ['agent', 'llm', 'gateway']);
   const { baseUrl, apiKey, model } = provider;
   if (!baseUrl || !apiKey || !model) {
+    if (missingAsNull) return null;
     return {
       title: '未配置 Agent 模型',
       summary: prompt.slice(0, 180),
-      content: '请在模型设置中配置 Agent / LLM Provider 后重新运行。',
-      items: [
-        '任务已经进入 GraphEngineering Worker。',
-        '配置模型后，Skill 会返回结构化 JSON 并写回画布。',
-      ],
+      content: '请在模型设置中配置 Agent Provider 后重新运行。',
+      items: ['媒体生成仍可使用规则提示词草稿，不会被 Agent 配置阻断。'],
       confidence: 0.35,
     };
   }
@@ -189,7 +201,7 @@ async function callJsonModel({
     },
     body: JSON.stringify({
       model,
-      temperature: 0.55,
+      temperature: 0.45,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: system },
@@ -197,24 +209,34 @@ async function callJsonModel({
       ],
     }),
   });
-  if (!response.ok) throw new Error(`Model gateway returned ${response.status}`);
+  if (!response.ok) {
+    if (missingAsNull) return null;
+    throw new Error(`Agent provider returned ${response.status}`);
+  }
   const body = (await response.json()) as any;
   const content = body.choices?.[0]?.message?.content ?? '{}';
-  return JSON.parse(content) as Record<string, any>;
+  try {
+    return JSON.parse(content) as Record<string, any>;
+  } catch {
+    if (missingAsNull) return null;
+    throw new Error('Agent provider did not return valid JSON');
+  }
 }
 
 async function callMediaProvider(
   input: MediaGenerationInput,
   userId: string,
 ): Promise<Record<string, any>> {
-  const preferred = [
-    input.provider,
-    input.mediaType,
-    input.mediaType === 'image' ? 'openai-image' : 'runway',
-    'gateway',
-  ];
-  const provider = await resolveProviderConfig(userId, preferred);
-  return executeMediaProvider(input, provider);
+  const preferred = input.mediaType === 'image'
+    ? [input.provider, 'image', 'openai-image']
+    : [input.provider, 'runway', 'luma', 'video'];
+  const provider = await resolveProviderConfig(userId, preferred, false);
+  const result = await executeMediaProvider(input, provider);
+  if (!result.previewUrl && result.base64) {
+    const format = String(input.parameters?.outputFormat ?? 'webp');
+    result.previewUrl = `data:image/${format};base64,${result.base64}`;
+  }
+  return result;
 }
 
 function flattenResultItems(result: Record<string, any>): string[] {
@@ -348,6 +370,15 @@ async function persistCanvasOutput({
   return { nodeId: clientId, ...data };
 }
 
+function graphContext(input: Record<string, any>): PromptComposerContext {
+  const story = input.story as Record<string, any> | undefined;
+  const assetContext = input.assets as Record<string, any> | undefined;
+  return {
+    nodes: Array.isArray(story?.nodes) ? story.nodes : [],
+    assets: Array.isArray(assetContext?.assets) ? assetContext.assets : [],
+  };
+}
+
 function executors(run: ClaimedRun) {
   return {
     normalize: ({ input }: NodeExecutorContext) => ({
@@ -383,11 +414,33 @@ function executors(run: ClaimedRun) {
           prompt,
           userId: run.requested_by,
         });
-        return { ...result, skillId: skill.id };
+        return { ...(result ?? {}), skillId: skill.id };
       }
+
       if (kind === 'media-generation') {
-        return callMediaProvider(run.input as MediaGenerationInput, run.requested_by);
+        const request = run.input as MediaGenerationRunInput;
+        const composition = await composeGenerationPrompt(
+          request,
+          graphContext(input as Record<string, any>),
+          ({ system, prompt }) =>
+            callJsonModel({
+              system,
+              prompt,
+              userId: run.requested_by,
+              missingAsNull: true,
+            }),
+        );
+        const providerResult = await callMediaProvider(
+          {
+            ...request,
+            prompt: composition.finalPrompt,
+            negativePrompt: composition.negativePrompt,
+          },
+          run.requested_by,
+        );
+        return { ...providerResult, promptComposition: composition };
       }
+
       const prompt = [
         `Instruction: ${run.input.instruction}`,
         `Source node: ${run.input.sourceNodeId}`,
@@ -404,8 +457,8 @@ function executors(run: ClaimedRun) {
     'verify-continuity': ({ input }: NodeExecutorContext) => {
       const candidate = (input.candidate ?? {}) as Record<string, any>;
       if (String(run.input.kind) === 'media-generation') {
-        if (!candidate.mediaType || !candidate.status) {
-          throw new Error('Media provider result did not satisfy required fields');
+        if (!candidate.mediaType || !candidate.status || !candidate.promptComposition) {
+          throw new Error('Media generation result did not satisfy required fields');
         }
         return candidate;
       }
@@ -449,6 +502,7 @@ function executors(run: ClaimedRun) {
       }
 
       if (kind === 'media-generation') {
+        const composition = verified.promptComposition ?? {};
         const nodeType = run.input.mediaType === 'video' ? 'videoOutput' : 'imageOutput';
         return persistCanvasOutput({
           run,
@@ -462,8 +516,15 @@ function executors(run: ClaimedRun) {
             provider: verified.provider ?? run.input.provider,
             externalJobId: verified.externalJobId,
             model: verified.model ?? run.input.model,
-            prompt: run.input.prompt,
-            negativePrompt: run.input.negativePrompt,
+            description: composition.description ?? run.input.description,
+            draftPrompt: composition.draftPrompt,
+            finalPrompt: composition.finalPrompt,
+            prompt: composition.finalPrompt,
+            promptSource: composition.promptSource,
+            promptInputHash: composition.inputHash,
+            promptNotes: composition.notes,
+            negativePrompt: composition.negativePrompt ?? run.input.negativePrompt,
+            inputNodeIds: run.input.inputNodeIds,
             inputAssetIds: run.input.inputAssetIds,
             inputUrls: run.input.inputUrls,
             ratio: run.input.parameters?.ratio,
