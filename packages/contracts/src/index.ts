@@ -124,7 +124,7 @@ export const generationParametersSchema = z.object({
   endFrameAssetId: z.string().uuid().optional(),
   maskAssetId: z.string().uuid().optional(),
   providerParameters: z.record(z.string(), z.unknown()).default({}),
-}).default({});
+}).default({ providerParameters: {} });
 
 export const mediaGenerationRunSchema = z.object({
   nodeId: z.string().min(1).max(120),
