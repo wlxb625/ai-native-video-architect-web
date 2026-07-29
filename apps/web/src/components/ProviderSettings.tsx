@@ -56,8 +56,8 @@ export function ProviderSettings() {
   const [open, setOpen] = useState(false);
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [activeId, setActiveId] = useState<ProviderProfileId>('agent');
-  const [baseUrl, setBaseUrl] = useState(providerProfiles[0].baseUrl);
-  const [model, setModel] = useState(providerProfiles[0].model);
+  const [baseUrl, setBaseUrl] = useState<string>(providerProfiles[0].baseUrl);
+  const [model, setModel] = useState<string>(providerProfiles[0].model);
   const [apiKey, setApiKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -73,10 +73,7 @@ export function ProviderSettings() {
     providers.some((provider) => provider.provider === item.id),
   ).length;
 
-  const applyProfile = (
-    id: ProviderProfileId,
-    items = providers,
-  ) => {
+  const applyProfile = (id: ProviderProfileId, items = providers) => {
     const next = providerProfiles.find((item) => item.id === id) ?? providerProfiles[0];
     const current = items.find((item) => item.provider === id);
     setActiveId(id);
