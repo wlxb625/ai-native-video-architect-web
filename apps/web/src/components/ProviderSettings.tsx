@@ -1,40 +1,98 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
+  Bot,
   CheckCircle2,
   ChevronDown,
+  Film,
+  Image as ImageIcon,
   KeyRound,
   LoaderCircle,
   ServerCog,
   Trash2,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, type ProviderSummary } from '../api';
 import './ProviderSettings.css';
 
-const ACTIVE_PROVIDER = 'gateway';
+const providerProfiles = [
+  {
+    id: 'agent',
+    label: 'Agent',
+    description: '剧本与 Skills',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-5.6',
+    icon: Bot,
+  },
+  {
+    id: 'image',
+    label: '图片',
+    description: '文生图与图生图',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-image-1',
+    icon: ImageIcon,
+  },
+  {
+    id: 'runway',
+    label: 'Runway',
+    description: '文生与图生视频',
+    baseUrl: 'https://api.dev.runwayml.com',
+    model: 'gen4.5',
+    icon: Film,
+  },
+  {
+    id: 'luma',
+    label: 'Luma',
+    description: '关键帧与视频',
+    baseUrl: 'https://api.lumalabs.ai',
+    model: 'ray-2',
+    icon: Film,
+  },
+] as const;
+
+type ProviderProfileId = typeof providerProfiles[number]['id'];
 
 export function ProviderSettings() {
   const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
-  const [saved, setSaved] = useState<ProviderSummary>();
-  const [baseUrl, setBaseUrl] = useState('https://api.openai.com/v1');
-  const [model, setModel] = useState('gpt-5.6');
+  const [providers, setProviders] = useState<ProviderSummary[]>([]);
+  const [activeId, setActiveId] = useState<ProviderProfileId>('agent');
+  const [baseUrl, setBaseUrl] = useState(providerProfiles[0].baseUrl);
+  const [model, setModel] = useState(providerProfiles[0].model);
   const [apiKey, setApiKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const loadProvider = async () => {
+  const profile = useMemo(
+    () => providerProfiles.find((item) => item.id === activeId) ?? providerProfiles[0],
+    [activeId],
+  );
+  const saved = providers.find((item) => item.provider === activeId);
+  const configuredCount = providerProfiles.filter((item) =>
+    providers.some((provider) => provider.provider === item.id),
+  ).length;
+
+  const applyProfile = (
+    id: ProviderProfileId,
+    items = providers,
+  ) => {
+    const next = providerProfiles.find((item) => item.id === id) ?? providerProfiles[0];
+    const current = items.find((item) => item.provider === id);
+    setActiveId(id);
+    setBaseUrl(current?.base_url ?? next.baseUrl);
+    setModel(current?.model ?? next.model);
+    setApiKey('');
+    setMessage('');
+    setError('');
+  };
+
+  const loadProviders = async () => {
     setError('');
     try {
       const response = await api.providers();
-      const current = response.providers.find((item) => item.provider === ACTIVE_PROVIDER);
-      setSaved(current);
-      if (current) {
-        setBaseUrl(current.base_url);
-        setModel(current.model);
-      }
+      setProviders(response.providers);
+      applyProfile(activeId, response.providers);
       setLoaded(true);
     } catch (cause) {
       setLoaded(true);
@@ -47,9 +105,7 @@ export function ProviderSettings() {
   };
 
   useEffect(() => {
-    if (open && !loaded) {
-      void loadProvider();
-    }
+    if (open && !loaded) void loadProviders();
   }, [open, loaded]);
 
   const save = async () => {
@@ -61,14 +117,15 @@ export function ProviderSettings() {
     setError('');
     setMessage('');
     try {
-      await api.saveProvider(ACTIVE_PROVIDER, {
+      await api.saveProvider(activeId, {
         apiKey: apiKey.trim(),
         baseUrl: baseUrl.trim(),
         model: model.trim(),
       });
       setApiKey('');
-      setMessage('统一模型网关已加密保存到服务端。');
-      await loadProvider();
+      setMessage(`${profile.label} Provider 已加密保存。`);
+      const response = await api.providers();
+      setProviders(response.providers);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '保存失败');
     } finally {
@@ -79,10 +136,11 @@ export function ProviderSettings() {
   const remove = async () => {
     setBusy(true);
     setError('');
+    setMessage('');
     try {
-      await api.deleteProvider(ACTIVE_PROVIDER);
-      setSaved(undefined);
-      setMessage('配置已删除。');
+      await api.deleteProvider(activeId);
+      setProviders((items) => items.filter((item) => item.provider !== activeId));
+      setMessage(`${profile.label} 配置已删除。`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '删除失败');
     } finally {
@@ -98,14 +156,12 @@ export function ProviderSettings() {
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
       >
-        <span className="provider-settings-icon">
-          <ServerCog size={15} />
-        </span>
+        <span className="provider-settings-icon"><ServerCog size={15} /></span>
         <span>
-          <strong>统一模型网关</strong>
-          <small>{saved ? `${saved.model} 已配置` : '连接真实 Agent 与媒体生成'}</small>
+          <strong>模型与媒体 API</strong>
+          <small>{configuredCount > 0 ? `已配置 ${configuredCount}/4` : '分别连接 Agent、图片和视频服务'}</small>
         </span>
-        {saved && <CheckCircle2 className="provider-ok" size={15} />}
+        {configuredCount > 0 && <CheckCircle2 className="provider-ok" size={15} />}
         <ChevronDown className={open ? 'is-open' : ''} size={15} />
       </button>
 
@@ -118,23 +174,49 @@ export function ProviderSettings() {
             exit={reduceMotion ? undefined : { opacity: 0, height: 0 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="provider-mode-note">
-              当前 Worker 使用一个 OpenAI-compatible 网关；生图和视频节点可以覆盖模型名称。独立 Provider 将在 Adapter 层接入。
+            <div className="provider-profile-tabs">
+              {providerProfiles.map((item) => {
+                const Icon = item.icon;
+                const isConfigured = providers.some((provider) => provider.provider === item.id);
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={activeId === item.id ? 'active' : ''}
+                    onClick={() => applyProfile(item.id)}
+                  >
+                    <Icon size={13} />
+                    <span><strong>{item.label}</strong><small>{item.description}</small></span>
+                    {isConfigured && <i />}
+                  </button>
+                );
+              })}
             </div>
+
+            <div className="provider-mode-note">
+              <strong>{profile.label}</strong>
+              <span>
+                {activeId === 'agent' && '仅供剧本 Agent 与 Skills 调用。'}
+                {activeId === 'image' && '处理文生图、图生图、多参考图和局部重绘。'}
+                {activeId === 'runway' && '使用异步任务接口处理文生视频和图生视频。'}
+                {activeId === 'luma' && '使用关键帧处理图生视频和首尾帧生视频。'}
+              </span>
+            </div>
+
             <label>
               API Base URL
               <input
                 value={baseUrl}
                 onChange={(event) => setBaseUrl(event.target.value)}
-                placeholder="https://provider.example/v1"
+                placeholder="https://provider.example"
               />
             </label>
             <label>
-              Agent 默认模型
+              默认模型 ID
               <input
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
-                placeholder="model-id"
+                placeholder="provider-model-id"
               />
             </label>
             <label>
@@ -172,7 +254,7 @@ export function ProviderSettings() {
             </div>
 
             <p className="provider-boundary">
-              浏览器不会保存密钥。服务端使用 AES-256-GCM 加密；正式部署仍应启用 TLS 和 KMS。
+              不同 Provider 的密钥彼此隔离；浏览器不保存明文。正式部署仍需 TLS、KMS 和请求出口限制。
             </p>
           </motion.div>
         )}
