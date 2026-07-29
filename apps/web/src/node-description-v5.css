@@ -1,0 +1,97 @@
+.generation-description-preview {
+  min-height: 178px;
+  padding: 14px;
+  border-bottom: 1px solid #e2e6ef;
+  background: linear-gradient(145deg, #f7f9ff, #eef2fb);
+}
+
+.node-videoGen .generation-description-preview {
+  background: linear-gradient(145deg, #f7fbfb, #edf6f4);
+}
+
+.generation-description-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.generation-description-head .generation-orbit {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #c4d0ed;
+  border-radius: 50%;
+  color: #4668ba;
+  background: #fff;
+}
+
+.node-videoGen .generation-description-head .generation-orbit {
+  border-color: #bcdacf;
+  color: #287862;
+}
+
+.generation-description-head strong {
+  display: block;
+  color: #2f3c56;
+  font-size: 12px;
+}
+
+.generation-description-head span {
+  display: block;
+  margin-top: 2px;
+  color: #7c879b;
+  font-size: 9px;
+}
+
+.generation-description-preview > p {
+  display: -webkit-box;
+  min-height: 58px;
+  margin: 12px 0 10px;
+  overflow: hidden;
+  color: #526078;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.generation-description-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #7b8598;
+  font-size: 9px;
+}
+
+.generation-description-meta span:last-child {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generation-description-preview .generation-progress {
+  height: 3px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dce3f2;
+}
+
+.generation-description-preview .generation-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #5c7fd0;
+  transition: width 240ms ease;
+}
+
+.node-videoGen .generation-description-preview .generation-progress {
+  background: #d8e8e3;
+}
+
+.node-videoGen .generation-description-preview .generation-progress i {
+  background: #3a9278;
+}
