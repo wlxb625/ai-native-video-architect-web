@@ -9,21 +9,8 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import {
-  Bot,
-  ChevronDown,
-  CircleHelp,
-  Cloud,
-  Film,
-  Image as ImageIcon,
-  Layers3,
-  Plus,
-  Search,
-  Settings2,
-  Sparkles,
-  Upload,
-} from 'lucide-react';
-import type { CanvasSnapshot } from '@cineweave/contracts';
+import { Bot, ChevronDown, Cloud, Film, Layers3, Sparkles } from 'lucide-react';
+import type { CanvasSnapshot, MediaGenerationOperation } from '@cineweave/contracts';
 import { api, setAccessToken } from './api';
 import { useStudio } from './store';
 import { StudioNode } from './components/StudioNode';
@@ -32,6 +19,13 @@ import { Inspector } from './components/Inspector';
 import { AuthScreen } from './components/AuthScreen';
 import { AssetShelf } from './components/AssetShelf';
 import { AgentPanel, type AgentSkillId } from './components/AgentPanel';
+import { GenerationModeBar } from './components/GenerationModeBar';
+import { HoverEdgePanel } from './components/HoverEdgePanel';
+import {
+  getGenerationMode,
+  isImageLikeNode,
+  isVideoLikeNode,
+} from './generationModes';
 
 const nodeTypes = {
   script: StudioNode,
@@ -58,17 +52,16 @@ const corridorShot =
 
 const demoSnapshot: CanvasSnapshot = {
   version: 0,
-  viewport: { x: 38, y: 88, zoom: 0.78 },
+  viewport: { x: 10, y: 80, zoom: 0.76 },
   nodes: [
     {
       id: 'script-main',
       type: 'script',
-      position: { x: 40, y: 70 },
+      position: { x: 20, y: 100 },
       data: {
         title: '《雨夜入站》第一场',
         summary: '末班地铁站，林澈捡到一台仍在录制的旧摄像机。',
-        content:
-          '广播提示末班车即将进站。林澈弯腰捡起摄像机，屏幕里却提前出现了“下一站”的空月台。',
+        content: '广播提示末班车即将进站。林澈弯腰捡起摄像机，屏幕里却提前出现了下一站的空月台。',
         status: 'ready',
       },
     },
@@ -79,8 +72,6 @@ const demoSnapshot: CanvasSnapshot = {
       data: {
         title: '林澈 · 一致性角色卡',
         summary: '克制、警觉；并不寻找真相，只想确认姐姐是否仍活着。',
-        previewStyle:
-          'linear-gradient(145deg, rgba(61,78,99,.35), rgba(12,17,25,.96)), radial-gradient(circle at 48% 26%, #bdc7cf 0 8%, #566371 9% 20%, transparent 21%)',
         lockedTraits: '黑色齐肩短发，深灰风衣，右耳银色耳钉，疲惫但克制。',
         status: 'ready',
       },
@@ -88,7 +79,7 @@ const demoSnapshot: CanvasSnapshot = {
     {
       id: 'scene-station',
       type: 'scene',
-      position: { x: 420, y: 260 },
+      position: { x: 420, y: 300 },
       data: {
         title: '末班地铁站',
         summary: '冷白灯、积水反光、远处风压；避免直接追逐。',
@@ -99,15 +90,13 @@ const demoSnapshot: CanvasSnapshot = {
     {
       id: 'shot-01',
       type: 'storyboard',
-      position: { x: 820, y: 10 },
+      position: { x: 820, y: 40 },
       data: {
         title: '镜头 01 · 摄像机异常',
         shotNumber: '01',
         summary: '特写。屏幕先出现下一站，现实广播随后才响起。',
-        prompt:
-          '旧摄像机屏幕特写，潮湿冷白地铁站，屏幕中的空月台比现实提前一秒，克制现实主义，浅景深',
+        prompt: '旧摄像机屏幕特写，潮湿冷白地铁站，屏幕中的空月台比现实提前一秒，克制现实主义，浅景深',
         previewStyle: cameraCloseup,
-        duration: '4s',
         ratio: '16:9',
         status: 'ready',
       },
@@ -115,29 +104,31 @@ const demoSnapshot: CanvasSnapshot = {
     {
       id: 'image-gen-01',
       type: 'imageGen',
-      position: { x: 1220, y: -40 },
+      position: { x: 1240, y: 40 },
       data: {
-        title: '镜头 01 · 图片候选',
-        summary: '引用林澈、地铁站和旧摄像机三项资产。',
-        prompt:
-          '旧摄像机屏幕特写，冷灰现实主义，潮湿反光，屏幕中的空月台提前出现，电影摄影，细腻颗粒',
+        operation: 'text-to-image',
+        title: '镜头 01 · 文生图',
+        summary: '从分镜描述生成四个图片候选。',
+        prompt: '旧摄像机屏幕特写，冷灰现实主义，潮湿反光，屏幕中的空月台提前出现，电影摄影，细腻颗粒',
         negativePrompt: '文字，水印，额外手指，身份漂移，过度霓虹',
-        model: 'Flux Adapter',
+        model: 'Image Provider',
         ratio: '16:9',
-        variants: '4',
+        variants: 4,
+        quality: 'standard',
+        outputFormat: 'webp',
         status: 'ready',
       },
     },
     {
       id: 'image-output-01',
       type: 'imageOutput',
-      position: { x: 1610, y: -120 },
+      position: { x: 1660, y: 40 },
       data: {
         title: '图片候选 V3',
         summary: '已采用为视频首帧。',
         previewStyle: cameraCloseup,
         version: 'V3',
-        model: 'Flux Adapter',
+        model: 'Image Provider',
         ratio: '16:9',
         status: 'generated',
       },
@@ -145,43 +136,47 @@ const demoSnapshot: CanvasSnapshot = {
     {
       id: 'video-gen-01',
       type: 'videoGen',
-      position: { x: 1990, y: -40 },
+      position: { x: 2080, y: 40 },
       data: {
-        title: '首帧生视频',
-        summary: '屏幕闪烁后，现实广播响起；镜头缓慢推近。',
-        prompt:
-          'camera slowly pushes in, screen flickers once, subtle handheld breathing, no sudden character movement',
-        model: 'Seedance Adapter',
+        operation: 'image-to-video',
+        title: '图片 V3 · 图生视频',
+        summary: '将采用图片作为首帧，生成缓慢推近的五秒镜头。',
+        prompt: '屏幕闪烁一次，现实广播随后响起，镜头缓慢推近，人物保持克制，不突然转身',
+        model: 'Video Provider',
         ratio: '16:9',
-        duration: '5s',
+        durationSeconds: 5,
+        resolution: '720p',
+        fps: 24,
+        motionStrength: 0.45,
+        cameraMotion: '缓慢推近',
         status: 'ready',
       },
     },
     {
       id: 'video-output-01',
       type: 'videoOutput',
-      position: { x: 2380, y: -120 },
+      position: { x: 2500, y: 40 },
       data: {
         title: '视频候选 V2',
         summary: '运镜稳定，屏幕闪烁时间正确。',
         previewStyle: corridorShot,
-        duration: '5s',
+        durationSeconds: 5,
         ratio: '16:9',
-        model: 'Seedance Adapter',
+        model: 'Video Provider',
         status: 'generated',
       },
     },
     {
       id: 'analysis-01',
       type: 'analysis',
-      position: { x: 820, y: 360 },
+      position: { x: 820, y: 430 },
       data: {
         title: '剧本诊断 · 开场',
         summary: '开场物件钩子清晰，但女主主动行为仍可提前。',
         items: [
           '让林澈先删除一段姐姐的旧语音，再捡到摄像机。',
-          '将异常限制为“提前一秒”，便于后续视觉规则统一。',
-          '第一场控制在 4 个镜头内，避免空间连续性成本。',
+          '将异常限制为提前一秒，便于后续视觉规则统一。',
+          '第一场控制在四个镜头内，避免空间连续性成本。',
         ],
         status: 'generated',
       },
@@ -209,57 +204,8 @@ type MenuState = {
   targetType?: string;
 };
 
-function defaultNodeData(type: string): Record<string, unknown> {
-  const defaults: Record<string, Record<string, unknown>> = {
-    script: {
-      title: '新剧本',
-      summary: '输入故事梗概或粘贴剧本文本。',
-      content: '',
-    },
-    character: {
-      title: '新人物',
-      summary: '补充外貌、服装、性格和禁止变化项。',
-      lockedTraits: '',
-    },
-    scene: {
-      title: '新场景',
-      summary: '补充空间、时间、光线和关键道具。',
-    },
-    referenceImage: {
-      title: '参考图',
-      summary: '上传图片，或绑定资产库中的素材。',
-    },
-    storyboard: {
-      title: '新分镜',
-      summary: '描述景别、机位、动作和镜头运动。',
-      shotNumber: 'NEW',
-      ratio: '16:9',
-    },
-    imageGen: {
-      title: '图片生成',
-      summary: '连接分镜和参考素材后生成候选图片。',
-      model: 'Image Provider',
-      ratio: '16:9',
-      variants: '4',
-      prompt: '',
-      negativePrompt: '',
-    },
-    videoGen: {
-      title: '视频生成',
-      summary: '连接首帧、尾帧或参考视频后生成候选。',
-      model: 'Video Provider',
-      ratio: '16:9',
-      duration: '5s',
-      prompt: '',
-      negativePrompt: '',
-    },
-    analysis: {
-      title: 'Agent 分析',
-      summary: '结构化分析结果。',
-      content: '',
-    },
-  };
-  return defaults[type] ?? { title: '新节点', summary: '填写内容。' };
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 export default function App() {
@@ -278,6 +224,20 @@ export default function App() {
     () => studio.nodes.find((node) => node.id === selectedId),
     [selectedId, studio.nodes],
   );
+
+  const inputNodes = useMemo(() => {
+    if (!selected) return [];
+    const sourceIds = studio.edges.filter((edge) => edge.target === selected.id).map((edge) => edge.source);
+    return studio.nodes.filter((node) => sourceIds.includes(node.id));
+  }, [selected, studio.edges, studio.nodes]);
+
+  const renderedNodes = useMemo(() => {
+    return studio.nodes.map((node) => {
+      if (node.type !== 'imageGen' && node.type !== 'videoGen') return node;
+      const inputCount = studio.edges.filter((edge) => edge.target === node.id).length;
+      return { ...node, data: { ...node.data, inputCount } };
+    });
+  }, [studio.nodes, studio.edges]);
 
   const loadWorkspace = async () => {
     const projectsResponse = (await api.projects()) as { projects: Project[] };
@@ -306,19 +266,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!studio.dirty || !studio.projectId || studio.projectId === 'demo-project') {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      void studio.save().catch(() => undefined);
-    }, 900);
+    if (!studio.dirty || !studio.projectId || studio.projectId === 'demo-project') return;
+    const timer = window.setTimeout(() => void studio.save().catch(() => undefined), 900);
     return () => window.clearTimeout(timer);
   }, [studio.nodes, studio.edges, studio.viewport, studio.dirty]);
 
   const reload = async () => {
-    if (!studio.projectId || studio.projectId === 'demo-project') {
-      return;
-    }
+    if (!studio.projectId || studio.projectId === 'demo-project') return;
     const snapshot = await api.canvas(studio.projectId);
     studio.setProject(studio.projectId, snapshot as never);
   };
@@ -331,42 +285,39 @@ export default function App() {
     return reactFlowRef.current?.screenToFlowPosition(screen) ?? { x: 0, y: 0 };
   };
 
-  const addNode = (
-    type: string,
-    position = viewportCenter(),
-    data: Record<string, unknown> = {},
-  ) => {
-    const id = studio.addNode(type, position, {
-      ...defaultNodeData(type),
-      ...data,
-    });
+  const addNode = (type: string, position = viewportCenter(), data: Record<string, unknown> = {}) => {
+    const id = studio.addNode(type, position, { title: '新节点', summary: '', ...data });
     setSelectedId(id);
     return id;
   };
 
-  const addConnectedNode = (
-    source: Node,
-    type: string,
-    data: Record<string, unknown> = {},
-  ) => {
-    const id = addNode(
-      type,
-      { x: source.position.x + 410, y: source.position.y },
-      data,
+  const addConnectedNode = (source: Node, type: string, data: Record<string, unknown> = {}) => {
+    const id = addNode(type, { x: source.position.x + 430, y: source.position.y }, data);
+    studio.onConnect({ source: source.id, target: id, sourceHandle: null, targetHandle: null });
+    return id;
+  };
+
+  const createGenerationMode = (operation: MediaGenerationOperation, source = selected) => {
+    const mode = getGenerationMode(operation);
+    const sourceIsCompatible = source && (
+      mode.inputKind === 'image' || mode.inputKind === 'two-images'
+        ? isImageLikeNode(source.type)
+        : mode.inputKind === 'video'
+          ? isVideoLikeNode(source.type)
+          : false
     );
-    studio.onConnect({
-      source: source.id,
-      target: id,
-      sourceHandle: null,
-      targetHandle: null,
-    });
+    const inheritedPrompt = source
+      ? String(source.data.prompt ?? source.data.summary ?? '')
+      : '';
+    const id = sourceIsCompatible
+      ? addConnectedNode(source, mode.nodeType, { ...mode.defaults, prompt: inheritedPrompt })
+      : addNode(mode.nodeType, viewportCenter(), { ...mode.defaults, prompt: mode.inputKind === 'none' ? inheritedPrompt : '' });
+    setSelectedId(id);
     return id;
   };
 
   const runAgent = async (skillId: AgentSkillId, instruction: string) => {
-    if (!studio.projectId) {
-      return;
-    }
+    if (!studio.projectId) return;
     setBusy(true);
     try {
       if (studio.projectId === 'demo-project') {
@@ -374,7 +325,7 @@ export default function App() {
         const base = source?.position ?? viewportCenter();
         const analysisId = addNode(
           skillId === 'storyboard-planner' ? 'storyboard' : 'analysis',
-          { x: base.x + 420, y: base.y + 300 },
+          { x: base.x + 430, y: base.y + 300 },
           skillId === 'storyboard-planner'
             ? {
                 title: 'Agent 分镜 · 镜头 02',
@@ -389,35 +340,23 @@ export default function App() {
                 summary: instruction,
                 items: [
                   '明确异常规则：画面永远比现实提前一秒。',
-                  '让林澈在第一场完成一次主动选择，而不是只被动观察。',
-                  '将复杂追逐替换为声音、反光和屏幕延迟，降低一致性风险。',
+                  '让林澈在第一场完成一次主动选择。',
+                  '用声音、反光和屏幕延迟代替复杂追逐。',
                 ],
-                content:
-                  '结论：当前开场钩子成立，但人物目标需要更早出现。建议把姐姐的旧语音放在捡到摄像机之前。',
                 status: 'generated',
               },
         );
-        if (source) {
-          studio.onConnect({
-            source: source.id,
-            target: analysisId,
-            sourceHandle: null,
-            targetHandle: null,
-          });
-        }
+        if (source) studio.onConnect({ source: source.id, target: analysisId, sourceHandle: null, targetHandle: null });
         setAgentOpen(false);
         return;
       }
-
       const response = await api.runSkill(studio.projectId, {
         skillId,
         instruction,
         sourceNodeIds: selected ? [selected.id] : [],
       });
       await api.streamRunEvents(response.run.id, (event) => {
-        if (event.event === 'done') {
-          void reload();
-        }
+        if (event.event === 'done') void reload();
       });
       setAgentOpen(false);
     } finally {
@@ -425,50 +364,45 @@ export default function App() {
     }
   };
 
-  const runMediaGeneration = async (
-    mediaType: 'image' | 'video',
-    source = selected,
-  ) => {
-    if (!studio.projectId) {
+  const runMediaGeneration = async (source = selected) => {
+    if (!studio.projectId || !source) return;
+
+    let generator = source;
+    if (source.type === 'imageOutput' || source.type === 'referenceImage') {
+      const id = createGenerationMode('image-to-image', source);
+      generator = useStudio.getState().nodes.find((node) => node.id === id) ?? source;
+    } else if (source.type === 'videoOutput') {
+      const id = createGenerationMode('video-extend', source);
+      generator = useStudio.getState().nodes.find((node) => node.id === id) ?? source;
+    }
+    if (generator.type !== 'imageGen' && generator.type !== 'videoGen') return;
+
+    const mode = getGenerationMode(generator.data.operation);
+    const incomingIds = useStudio.getState().edges
+      .filter((edge) => edge.target === generator.id)
+      .map((edge) => edge.source);
+    const incoming = useStudio.getState().nodes.filter((node) => incomingIds.includes(node.id));
+    const required = mode.inputKind === 'two-images' ? 2 : mode.inputKind === 'none' ? 0 : 1;
+    if (incoming.length < required) {
+      window.alert(`${mode.title}还缺少输入素材，请先把所需图片或视频连接到任务节点。`);
       return;
     }
 
     setBusy(true);
+    studio.updateNode(generator.id, { status: 'running' });
     try {
-      let generator = source;
-      const requiredType = mediaType === 'image' ? 'imageGen' : 'videoGen';
-      if (!generator || generator.type !== requiredType) {
-        if (source) {
-          const id = addConnectedNode(source, requiredType, {
-            title: mediaType === 'image' ? '图片生成任务' : '视频生成任务',
-            prompt: String(source.data.prompt ?? source.data.summary ?? ''),
-            status: 'running',
-          });
-          generator = useStudio.getState().nodes.find((node) => node.id === id);
-        } else {
-          const id = addNode(requiredType, viewportCenter(), { status: 'running' });
-          generator = useStudio.getState().nodes.find((node) => node.id === id);
-        }
-      } else {
-        studio.updateNode(generator.id, { status: 'running' });
-      }
-
-      if (!generator) {
-        return;
-      }
-
       if (studio.projectId === 'demo-project') {
-        const outputType = mediaType === 'image' ? 'imageOutput' : 'videoOutput';
+        const outputType = mode.mediaType === 'image' ? 'imageOutput' : 'videoOutput';
         const outputId = addConnectedNode(generator, outputType, {
-          title: mediaType === 'image' ? '图片候选 V1' : '视频候选 V1',
-          summary:
-            mediaType === 'image'
-              ? '演示候选已生成，可继续生成变体或作为视频首帧。'
-              : '演示视频已生成，可提取尾帧或继续延长。',
-          previewStyle: mediaType === 'image' ? cameraCloseup : corridorShot,
+          title: `${mode.title}候选 V1`,
+          summary: mode.mediaType === 'image'
+            ? '演示图片候选已生成，可继续图生图或作为视频首帧。'
+            : '演示视频候选已生成，可继续延长或加入分镜时间线。',
+          previewStyle: mode.mediaType === 'image' ? cameraCloseup : corridorShot,
+          operation: mode.id,
           model: String(generator.data.model ?? 'Provider Adapter'),
           ratio: String(generator.data.ratio ?? '16:9'),
-          duration: String(generator.data.duration ?? '5s'),
+          durationSeconds: Number(generator.data.durationSeconds ?? 5),
           version: 'V1',
           status: 'generated',
         });
@@ -478,37 +412,52 @@ export default function App() {
       }
 
       await useStudio.getState().save();
+      const inputAssetIds = incoming.map((node) => node.data.assetId).filter(isUuid);
+      const inputUrls = incoming
+        .map((node) => String(node.data.previewUrl ?? ''))
+        .filter((value) => /^https:\/\//i.test(value));
       const response = await api.generateMedia(studio.projectId, {
         nodeId: generator.id,
-        mediaType,
-        operation: mediaType === 'image' ? 'text-to-image' : 'image-to-video',
-        prompt: String(generator.data.prompt ?? generator.data.summary ?? '生成媒体候选'),
+        mediaType: mode.mediaType,
+        operation: mode.id,
+        prompt: String(generator.data.prompt ?? generator.data.summary ?? `${mode.title}任务`),
         negativePrompt: String(generator.data.negativePrompt ?? ''),
-        model: String(generator.data.model ?? ''),
-        inputAssetIds: [],
+        provider: String(generator.data.provider ?? '') || undefined,
+        model: String(generator.data.model ?? '') || undefined,
+        inputAssetIds,
+        inputUrls,
         parameters: {
-          ratio: generator.data.ratio ?? '16:9',
-          duration: generator.data.duration,
-          variants: generator.data.variants,
+          ratio: generator.data.ratio as never,
+          size: generator.data.size as string | undefined,
+          resolution: generator.data.resolution as never,
+          quality: generator.data.quality as never,
+          variants: Number(generator.data.variants ?? 1),
+          seed: Number(generator.data.seed ?? 0),
+          background: generator.data.background as never,
+          outputFormat: generator.data.outputFormat as never,
+          strength: Number(generator.data.strength ?? 0.55),
+          inputFidelity: generator.data.inputFidelity as never,
+          preserveComposition: Boolean(generator.data.preserveComposition ?? true),
+          durationSeconds: Number(generator.data.durationSeconds ?? 5),
+          fps: Number(generator.data.fps ?? 24),
+          motionStrength: Number(generator.data.motionStrength ?? 0.45),
+          cameraMotion: String(generator.data.cameraMotion ?? ''),
+          generateAudio: Boolean(generator.data.generateAudio ?? false),
+          loop: Boolean(generator.data.loop ?? false),
+          providerParameters: {},
         },
       });
       await api.streamRunEvents(response.run.id, (event) => {
-        if (event.event === 'done') {
-          void reload();
-        }
+        if (event.event === 'done') void reload();
       });
     } finally {
       setBusy(false);
+      if (generator) studio.updateNode(generator.id, { status: 'ready' });
     }
   };
 
   if (authState === 'checking') {
-    return (
-      <div className="boot-screen">
-        <div className="boot-orb" />
-        <span>正在恢复安全会话…</span>
-      </div>
-    );
+    return <div className="boot-screen"><div className="boot-orb" /><span>正在恢复安全会话…</span></div>;
   }
 
   if (authState === 'required') {
@@ -525,7 +474,7 @@ export default function App() {
   }
 
   const syncStatus = studio.conflict
-    ? '版本冲突 · 重新载入'
+    ? '版本冲突'
     : studio.saving
       ? '保存中…'
       : studio.dirty
@@ -533,74 +482,35 @@ export default function App() {
         : '已同步';
 
   return (
-    <div className="app-shell media-studio-shell">
-      <header className="topbar">
+    <div className="app-shell media-studio-shell canvas-first-shell">
+      <header className="topbar compact-topbar">
         <div className="brand">
-          <div className="brand-mark">
-            <Film size={18} />
-          </div>
+          <div className="brand-mark"><Film size={18} /></div>
           <span>CineWeave</span>
-          <b>Media Studio</b>
+          <b>Generation Studio</b>
         </div>
-
         <div className="project-switcher">
           <span className="project-dot" />
-          <div>
-            <small>当前项目</small>
-            <strong>{projectTitle}</strong>
-          </div>
+          <div><small>当前项目</small><strong>{projectTitle}</strong></div>
           <ChevronDown size={15} />
         </div>
-
+        <div className="topbar-version">GENERATION MODES V4</div>
         <div className="top-actions">
-          <button>
-            <Search size={16} />
-            <span>搜索素材</span>
-          </button>
           <button
             className={`sync-state ${studio.conflict ? 'danger' : ''}`}
             onClick={() => studio.conflict && void reload()}
           >
-            <Cloud size={15} />
-            {syncStatus}
+            <Cloud size={15} />{syncStatus}
           </button>
-          <button className="icon-button">
-            <CircleHelp size={17} />
+          <button className="primary-action" onClick={() => setAgentOpen(true)}>
+            <Bot size={15} />AI 导演
           </button>
-          <button className="icon-button">
-            <Settings2 size={17} />
-          </button>
-          <div className="avatar">CW</div>
         </div>
       </header>
 
-      <AssetShelf onCreate={(type, data) => addNode(type, viewportCenter(), data)} />
-
-      <main className="workspace">
-        <div className="canvas-head media-canvas-head">
-          <div>
-            <span className="eyebrow">GENERATIVE MEDIA CANVAS</span>
-            <h1>影视生成画布</h1>
-            <p>素材关系在前台可见，Agent 与 Skills 在后台执行。</p>
-          </div>
-          <div className="canvas-actions">
-            <button>
-              <Upload size={15} /> 上传素材
-            </button>
-            <button onClick={() => addNode('imageGen')}>
-              <ImageIcon size={15} /> 生图
-            </button>
-            <button onClick={() => addNode('videoGen')}>
-              <Film size={15} /> 生视频
-            </button>
-            <button className="primary" onClick={() => setAgentOpen(true)}>
-              <Bot size={16} /> AI 导演
-            </button>
-          </div>
-        </div>
-
+      <main className="workspace canvas-first-workspace">
         <div
-          className="canvas-frame"
+          className="canvas-frame canvas-first-frame"
           ref={canvasRef}
           onContextMenu={(event) => {
             event.preventDefault();
@@ -608,22 +518,16 @@ export default function App() {
             setMenu({
               x: event.clientX - bounds.left,
               y: event.clientY - bounds.top,
-              flow:
-                reactFlowRef.current?.screenToFlowPosition({
-                  x: event.clientX,
-                  y: event.clientY,
-                }) ?? { x: 0, y: 0 },
+              flow: reactFlowRef.current?.screenToFlowPosition({ x: event.clientX, y: event.clientY }) ?? { x: 0, y: 0 },
             });
           }}
         >
           {ready && (
             <ReactFlow
-              nodes={studio.nodes}
+              nodes={renderedNodes}
               edges={studio.edges}
               nodeTypes={nodeTypes}
-              onInit={(instance) => {
-                reactFlowRef.current = instance;
-              }}
+              onInit={(instance) => { reactFlowRef.current = instance; }}
               onNodesChange={studio.onNodesChange}
               onEdgesChange={studio.onEdgesChange}
               onConnect={studio.onConnect}
@@ -657,15 +561,13 @@ export default function App() {
             </ReactFlow>
           )}
 
-          <div className="canvas-mode-pill">
-            <Layers3 size={13} /> 素材血缘模式
-          </div>
-
-          <div className="task-strip">
-            <span><i className="task-dot image" />图片任务 1</span>
-            <span><i className="task-dot video" />视频任务 0</span>
-            <span><i className="task-dot agent" />Agent 运行 0</span>
-            <b>所有输出均保留版本</b>
+          <GenerationModeBar onCreate={(operation) => createGenerationMode(operation)} />
+          <div className="canvas-mode-pill"><Layers3 size={13} /> 素材与生成血缘</div>
+          <div className="task-strip compact-task-strip">
+            <span><i className="task-dot image" />文/图生图</span>
+            <span><i className="task-dot video" />文/图生视频</span>
+            <span><i className="task-dot agent" />Agent Skills</span>
+            <b>侧栏移入展开 · 可固定 · 可拖拽调宽</b>
           </div>
 
           {menu && (
@@ -675,32 +577,18 @@ export default function App() {
               targetType={menu.targetType}
               onClose={() => setMenu(undefined)}
               onAdd={(type) => {
-                const source = menu.targetId
-                  ? studio.nodes.find((node) => node.id === menu.targetId)
-                  : undefined;
-                if (source) {
-                  addConnectedNode(source, type);
-                } else {
-                  addNode(type, menu.flow);
-                }
+                const source = menu.targetId ? studio.nodes.find((node) => node.id === menu.targetId) : undefined;
+                if (source) addConnectedNode(source, type);
+                else addNode(type, menu.flow, { title: type === 'script' ? '新剧本' : '新素材' });
                 setMenu(undefined);
               }}
-              onAgent={() => {
-                setAgentOpen(true);
-                setMenu(undefined);
-              }}
+              onAgent={() => { setAgentOpen(true); setMenu(undefined); }}
               onGenerate={(type) => {
-                const source = menu.targetId
-                  ? studio.nodes.find((node) => node.id === menu.targetId)
-                  : selected;
-                if (source) {
-                  const id = addConnectedNode(source, type, {
-                    prompt: String(source.data.prompt ?? source.data.summary ?? ''),
-                  });
-                  setSelectedId(id);
-                } else {
-                  addNode(type, menu.flow);
-                }
+                const source = menu.targetId ? studio.nodes.find((node) => node.id === menu.targetId) : selected;
+                const operation: MediaGenerationOperation = type === 'imageGen'
+                  ? source && isImageLikeNode(source.type) ? 'image-to-image' : 'text-to-image'
+                  : source && isImageLikeNode(source.type) ? 'image-to-video' : 'text-to-video';
+                createGenerationMode(operation, source);
                 setMenu(undefined);
               }}
             />
@@ -708,16 +596,19 @@ export default function App() {
         </div>
       </main>
 
-      <Inspector
-        node={selected}
-        onUpdate={(patch) => selected && studio.updateNode(selected.id, patch)}
-        onGenerate={(mediaType) =>
-          void runMediaGeneration(
-            mediaType ?? (selected?.type?.startsWith('video') ? 'video' : 'image'),
-          )
-        }
-        onOpenAgent={() => setAgentOpen(true)}
-      />
+      <HoverEdgePanel side="left" storageKey="cineweave-assets-panel" label="素材库" defaultWidth={300} minWidth={240} maxWidth={520}>
+        <AssetShelf onCreate={(type, data) => addNode(type, viewportCenter(), data)} />
+      </HoverEdgePanel>
+
+      <HoverEdgePanel side="right" storageKey="cineweave-inspector-panel" label="参数" defaultWidth={390} minWidth={320} maxWidth={620}>
+        <Inspector
+          node={selected}
+          inputNodes={inputNodes}
+          onUpdate={(patch) => selected && studio.updateNode(selected.id, patch)}
+          onGenerate={() => void runMediaGeneration()}
+          onOpenAgent={() => setAgentOpen(true)}
+        />
+      </HoverEdgePanel>
 
       <AgentPanel
         open={agentOpen}
@@ -726,21 +617,8 @@ export default function App() {
         onRun={(skillId, instruction) => void runAgent(skillId, instruction)}
       />
 
-      <button
-        className="floating-agent-button"
-        onClick={() => setAgentOpen(true)}
-        title="打开 AI 导演"
-      >
-        <Sparkles size={17} />
-        <span>AI 导演</span>
-      </button>
-
-      <button
-        className="floating-create-button"
-        onClick={() => addNode('imageGen')}
-        title="创建生成任务"
-      >
-        <Plus size={18} />
+      <button className="floating-agent-button" onClick={() => setAgentOpen(true)} title="打开 AI 导演">
+        <Sparkles size={17} /><span>AI 导演</span>
       </button>
     </div>
   );
