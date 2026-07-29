@@ -8,6 +8,7 @@ import {
   WandSparkles,
 } from 'lucide-react';
 import type { Node } from '@xyflow/react';
+import { ProviderSettings } from './ProviderSettings';
 
 function SelectField({
   label,
@@ -49,11 +50,12 @@ export function Inspector({
         <div className="inspector-empty">
           <div className="empty-orb" />
           <h3>选择一项创作素材</h3>
-          <p>图片、视频、分镜、剧本和人物资产的参数都会显示在这里。</p>
+          <p>图片、视频、分镜、剧本和人物资产的参数会在这里集中编辑。</p>
           <button onClick={onOpenAgent}>
             <Bot size={15} /> 打开 AI 导演
           </button>
         </div>
+        <ProviderSettings />
       </aside>
     );
   }
@@ -68,7 +70,7 @@ export function Inspector({
     <aside className="inspector">
       <div className="inspector-head">
         <div>
-          <span>CREATIVE INSPECTOR</span>
+          <span>NODE INSPECTOR</span>
           <h2>{String(data.title ?? '未命名')}</h2>
         </div>
         <span className="pill">{type}</span>
@@ -196,11 +198,16 @@ export function Inspector({
       )}
 
       {isMediaOutput && (
-        <button className="generate-button" onClick={() => onGenerate(type === 'videoOutput' ? 'video' : 'image')}>
+        <button
+          className="generate-button"
+          onClick={() => onGenerate(type === 'videoOutput' ? 'video' : 'image')}
+        >
           {type === 'videoOutput' ? <Play size={17} /> : <WandSparkles size={17} />}
           <span>{type === 'videoOutput' ? '延长 / 创建新版本' : '生成变体 / 创建新版本'}</span>
         </button>
       )}
+
+      <ProviderSettings />
 
       <div className="security-note">
         <strong>生成血缘可追溯</strong>
