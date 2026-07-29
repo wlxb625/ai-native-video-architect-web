@@ -9,6 +9,7 @@ import {
   UserRound,
   WandSparkles,
 } from 'lucide-react';
+import { motion, useReducedMotion } from 'motion/react';
 
 const canvasItems = [
   ['script', '添加剧本', BookOpenText],
@@ -37,6 +38,7 @@ export function ContextMenu({
   onGenerate: (type: 'imageGen' | 'videoGen') => void;
   onClose: () => void;
 }) {
+  const reduceMotion = useReducedMotion();
   const isImage = ['referenceImage', 'imageOutput', 'character', 'scene', 'storyboard'].includes(
     targetType ?? '',
   );
@@ -44,22 +46,37 @@ export function ContextMenu({
 
   return (
     <>
-      <button
+      <motion.button
         className="context-menu-backdrop"
         aria-label="关闭菜单"
         onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
       />
-      <div className="context-menu" style={{ left: x, top: y }}>
+      <motion.div
+        className="context-menu"
+        style={{ left: x, top: y }}
+        initial={reduceMotion ? false : { opacity: 0, scale: 0.96, y: -5 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 520, damping: 38 }}
+      >
         <div className="context-title">
           {targetType ? '基于当前素材' : '在此处创建'}
         </div>
 
         {!targetType &&
-          canvasItems.map(([type, label, Icon]) => (
-            <button key={type} onClick={() => onAdd(type)}>
+          canvasItems.map(([type, label, Icon], index) => (
+            <motion.button
+              type="button"
+              key={type}
+              onClick={() => onAdd(type)}
+              initial={reduceMotion ? false : { opacity: 0, x: -5 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.018 }}
+            >
               <Icon size={15} />
               <span>{label}</span>
-            </button>
+            </motion.button>
           ))}
 
         {targetType && (
@@ -99,7 +116,7 @@ export function ContextMenu({
           <span>打开 AI 导演</span>
           <kbd>A</kbd>
         </button>
-      </div>
+      </motion.div>
     </>
   );
 }
