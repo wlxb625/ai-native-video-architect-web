@@ -52,12 +52,12 @@ const corridorShot =
 
 const demoSnapshot: CanvasSnapshot = {
   version: 0,
-  viewport: { x: 10, y: 80, zoom: 0.76 },
+  viewport: { x: 10, y: 80, zoom: 0.78 },
   nodes: [
     {
       id: 'script-main',
       type: 'script',
-      position: { x: 20, y: 100 },
+      position: { x: 20, y: 90 },
       data: {
         title: '《雨夜入站》第一场',
         summary: '末班地铁站，林澈捡到一台仍在录制的旧摄像机。',
@@ -68,10 +68,10 @@ const demoSnapshot: CanvasSnapshot = {
     {
       id: 'character-lin',
       type: 'character',
-      position: { x: 420, y: -80 },
+      position: { x: 430, y: -80 },
       data: {
         title: '林澈 · 一致性角色卡',
-        summary: '克制、警觉；并不寻找真相，只想确认姐姐是否仍活着。',
+        summary: '克制、警觉；只想确认姐姐是否仍活着。',
         lockedTraits: '黑色齐肩短发，深灰风衣，右耳银色耳钉，疲惫但克制。',
         status: 'ready',
       },
@@ -79,10 +79,10 @@ const demoSnapshot: CanvasSnapshot = {
     {
       id: 'scene-station',
       type: 'scene',
-      position: { x: 420, y: 300 },
+      position: { x: 430, y: 320 },
       data: {
         title: '末班地铁站',
-        summary: '冷白灯、积水反光、远处风压；避免直接追逐。',
+        summary: '冷白灯、积水反光、远处风压，空间安静。',
         previewStyle: rainStation,
         status: 'ready',
       },
@@ -90,12 +90,12 @@ const demoSnapshot: CanvasSnapshot = {
     {
       id: 'shot-01',
       type: 'storyboard',
-      position: { x: 820, y: 40 },
+      position: { x: 840, y: 40 },
       data: {
         title: '镜头 01 · 摄像机异常',
         shotNumber: '01',
         summary: '特写。屏幕先出现下一站，现实广播随后才响起。',
-        prompt: '旧摄像机屏幕特写，潮湿冷白地铁站，屏幕中的空月台比现实提前一秒，克制现实主义，浅景深',
+        prompt: '旧摄像机屏幕特写，潮湿冷白地铁站，屏幕中的空月台比现实提前一秒。',
         previewStyle: cameraCloseup,
         ratio: '16:9',
         status: 'ready',
@@ -104,16 +104,19 @@ const demoSnapshot: CanvasSnapshot = {
     {
       id: 'image-gen-01',
       type: 'imageGen',
-      position: { x: 1240, y: 40 },
+      position: { x: 1260, y: 40 },
       data: {
         operation: 'text-to-image',
         title: '镜头 01 · 文生图',
-        summary: '从分镜描述生成四个图片候选。',
-        prompt: '旧摄像机屏幕特写，冷灰现实主义，潮湿反光，屏幕中的空月台提前出现，电影摄影，细腻颗粒',
-        negativePrompt: '文字，水印，额外手指，身份漂移，过度霓虹',
-        model: 'Image Provider',
+        summary: '用自然语言描述画面，系统自动整理模型提示词。',
+        description: '雨夜末班地铁站，短发女孩双手捧着旧摄像机，屏幕显示空月台，手部与屏幕为画面焦点，冷白灯反射在潮湿地面。',
+        promptMode: 'auto',
+        promptGuidance: '现实主义、克制、低饱和，避免过度霓虹。',
+        prompt: '',
+        provider: 'image',
+        model: 'gpt-image-1',
         ratio: '16:9',
-        variants: 4,
+        variants: 1,
         quality: 'standard',
         outputFormat: 'webp',
         status: 'ready',
@@ -122,13 +125,15 @@ const demoSnapshot: CanvasSnapshot = {
     {
       id: 'image-output-01',
       type: 'imageOutput',
-      position: { x: 1660, y: 40 },
+      position: { x: 1700, y: 40 },
       data: {
-        title: '图片候选 V3',
-        summary: '已采用为视频首帧。',
+        title: '图片候选 V1 · 演示素材',
+        summary: '演示画面，不是外部图片模型的真实返回结果。',
+        description: '雨夜地铁站里的旧摄像机屏幕特写。',
+        finalPrompt: '以冷灰现实主义表现潮湿末班地铁站，旧摄像机屏幕为视觉中心，屏幕中空月台提前出现，浅景深，克制电影照明。',
+        promptSource: 'rule-fallback',
         previewStyle: cameraCloseup,
-        version: 'V3',
-        model: 'Image Provider',
+        version: 'V1',
         ratio: '16:9',
         status: 'generated',
       },
@@ -136,48 +141,37 @@ const demoSnapshot: CanvasSnapshot = {
     {
       id: 'video-gen-01',
       type: 'videoGen',
-      position: { x: 2080, y: 40 },
+      position: { x: 2140, y: 40 },
       data: {
         operation: 'image-to-video',
-        title: '图片 V3 · 图生视频',
-        summary: '将采用图片作为首帧，生成缓慢推近的五秒镜头。',
-        prompt: '屏幕闪烁一次，现实广播随后响起，镜头缓慢推近，人物保持克制，不突然转身',
-        model: 'Video Provider',
+        title: '图片 V1 · 图生视频',
+        summary: '连接首帧后描述接下来的动作和运镜。',
+        description: '从当前首帧开始，屏幕闪烁一次，女孩的手指轻轻收紧，远处列车风吹动她的发梢，镜头缓慢推近屏幕。',
+        promptMode: 'auto',
+        promptGuidance: '动作幅度小，保持人物与摄像机外观稳定。',
+        prompt: '',
+        provider: 'runway',
+        model: 'gen4.5',
         ratio: '16:9',
         durationSeconds: 5,
         resolution: '720p',
         fps: 24,
         motionStrength: 0.45,
         cameraMotion: '缓慢推近',
+        inlineInputUrls: [],
         status: 'ready',
       },
     },
     {
       id: 'video-output-01',
       type: 'videoOutput',
-      position: { x: 2500, y: 40 },
+      position: { x: 2580, y: 40 },
       data: {
-        title: '视频候选 V2',
-        summary: '运镜稳定，屏幕闪烁时间正确。',
+        title: '视频候选 V1 · 演示素材',
+        summary: '演示预览，不是视频 Provider 的真实返回结果。',
         previewStyle: corridorShot,
         durationSeconds: 5,
         ratio: '16:9',
-        model: 'Video Provider',
-        status: 'generated',
-      },
-    },
-    {
-      id: 'analysis-01',
-      type: 'analysis',
-      position: { x: 820, y: 430 },
-      data: {
-        title: '剧本诊断 · 开场',
-        summary: '开场物件钩子清晰，但女主主动行为仍可提前。',
-        items: [
-          '让林澈先删除一段姐姐的旧语音，再捡到摄像机。',
-          '将异常限制为提前一秒，便于后续视觉规则统一。',
-          '第一场控制在四个镜头内，避免空间连续性成本。',
-        ],
         status: 'generated',
       },
     },
@@ -191,7 +185,6 @@ const demoSnapshot: CanvasSnapshot = {
     { id: 'e6', source: 'image-gen-01', target: 'image-output-01', type: 'smoothstep', data: {} },
     { id: 'e7', source: 'image-output-01', target: 'video-gen-01', type: 'smoothstep', data: {} },
     { id: 'e8', source: 'video-gen-01', target: 'video-output-01', type: 'smoothstep', data: {} },
-    { id: 'e9', source: 'script-main', target: 'analysis-01', type: 'smoothstep', data: {} },
   ],
 };
 
@@ -206,6 +199,33 @@ type MenuState = {
 
 function isUuid(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function isMediaReference(value: string): boolean {
+  return /^https:\/\//i.test(value) || /^data:(image|video)\/[a-z0-9.+-]+;base64,/i.test(value);
+}
+
+function rulePreview(operation: MediaGenerationOperation, description: string, guidance: string, inputCount: number) {
+  const reference = inputCount > 0
+    ? operation === 'first-last-frame-video'
+      ? '以图片1为首帧、图片2为尾帧，'
+      : operation.includes('video') && operation !== 'text-to-video'
+        ? '参考输入素材，'
+        : '参考图片1，'
+    : '';
+  const modeRule: Partial<Record<MediaGenerationOperation, string>> = {
+    'text-to-image': '生成一张全新的单帧画面，明确主体、环境、构图、景别、光线和质感。',
+    'image-to-image': '保留输入图的人物身份与主要构图，只修改描述中指定的内容。',
+    'multi-reference-image': '综合人物、场景和风格参考，生成统一的新画面。',
+    inpaint: '只修改指定区域，其余画面保持不变并自然衔接。',
+    'text-to-video': '生成连续短镜头，描述可见动作链、环境变化和镜头运动。',
+    'image-to-video': '把图片1作为首帧，重点描述首帧之后的动作与运镜。',
+    'first-last-frame-video': '描述两帧之间单向、连续且可见的过渡过程。',
+    'video-extend': '从原视频结束状态继续，保持动作方向、光线和运镜连续。',
+  };
+  return [reference + (modeRule[operation] ?? '根据描述生成媒体内容。'), `创作目标：${description}`, guidance ? `补充要求：${guidance}` : '']
+    .filter(Boolean)
+    .join('\n');
 }
 
 export default function App() {
@@ -231,13 +251,12 @@ export default function App() {
     return studio.nodes.filter((node) => sourceIds.includes(node.id));
   }, [selected, studio.edges, studio.nodes]);
 
-  const renderedNodes = useMemo(() => {
-    return studio.nodes.map((node) => {
-      if (node.type !== 'imageGen' && node.type !== 'videoGen') return node;
-      const inputCount = studio.edges.filter((edge) => edge.target === node.id).length;
-      return { ...node, data: { ...node.data, inputCount } };
-    });
-  }, [studio.nodes, studio.edges]);
+  const renderedNodes = useMemo(() => studio.nodes.map((node) => {
+    if (node.type !== 'imageGen' && node.type !== 'videoGen') return node;
+    const connected = studio.edges.filter((edge) => edge.target === node.id).length;
+    const inline = Array.isArray(node.data.inlineInputUrls) ? node.data.inlineInputUrls.length : 0;
+    return { ...node, data: { ...node.data, inputCount: connected + inline } };
+  }), [studio.nodes, studio.edges]);
 
   const loadWorkspace = async () => {
     const projectsResponse = (await api.projects()) as { projects: Project[] };
@@ -306,12 +325,18 @@ export default function App() {
           ? isVideoLikeNode(source.type)
           : false
     );
-    const inheritedPrompt = source
-      ? String(source.data.prompt ?? source.data.summary ?? '')
+    const inheritedDescription = source
+      ? String(source.data.description ?? source.data.summary ?? source.data.prompt ?? '')
       : '';
+    const data = {
+      ...mode.defaults,
+      description: inheritedDescription,
+      promptMode: 'auto',
+      prompt: '',
+    };
     const id = sourceIsCompatible
-      ? addConnectedNode(source, mode.nodeType, { ...mode.defaults, prompt: inheritedPrompt })
-      : addNode(mode.nodeType, viewportCenter(), { ...mode.defaults, prompt: mode.inputKind === 'none' ? inheritedPrompt : '' });
+      ? addConnectedNode(source, mode.nodeType, data)
+      : addNode(mode.nodeType, viewportCenter(), data);
     setSelectedId(id);
     return id;
   };
@@ -331,12 +356,12 @@ export default function App() {
                 title: 'Agent 分镜 · 镜头 02',
                 shotNumber: '02',
                 summary: '中近景。林澈抬头，广播内容与屏幕字幕完全一致。',
-                prompt: '林澈抬头看向站台尽头，冷白灯，微弱风压，克制表情，中近景',
+                prompt: '林澈抬头看向站台尽头，冷白灯，微弱风压，中近景。',
                 previewStyle: corridorShot,
                 status: 'generated',
               }
             : {
-                title: 'Agent 分析 · 可执行修改',
+                title: 'Agent 分析 · 演示结果',
                 summary: instruction,
                 items: [
                   '明确异常规则：画面永远比现实提前一秒。',
@@ -367,24 +392,46 @@ export default function App() {
   const runMediaGeneration = async (source = selected) => {
     if (!studio.projectId || !source) return;
 
-    let generator = source;
     if (source.type === 'imageOutput' || source.type === 'referenceImage') {
-      const id = createGenerationMode('image-to-image', source);
-      generator = useStudio.getState().nodes.find((node) => node.id === id) ?? source;
-    } else if (source.type === 'videoOutput') {
-      const id = createGenerationMode('video-extend', source);
-      generator = useStudio.getState().nodes.find((node) => node.id === id) ?? source;
+      createGenerationMode('image-to-image', source);
+      return;
     }
-    if (generator.type !== 'imageGen' && generator.type !== 'videoGen') return;
+    if (source.type === 'videoOutput') {
+      createGenerationMode('video-extend', source);
+      return;
+    }
+    if (source.type !== 'imageGen' && source.type !== 'videoGen') return;
 
+    const generator = source;
     const mode = getGenerationMode(generator.data.operation);
-    const incomingIds = useStudio.getState().edges
-      .filter((edge) => edge.target === generator.id)
-      .map((edge) => edge.source);
-    const incoming = useStudio.getState().nodes.filter((node) => incomingIds.includes(node.id));
+    const description = String(generator.data.description ?? '').trim();
+    const promptMode = String(generator.data.promptMode ?? 'auto') as 'auto' | 'manual';
+    const manualPrompt = String(generator.data.prompt ?? '').trim();
+    if (!description) {
+      window.alert('请先填写“想生成什么”。系统会根据这段描述整理最终提示词。');
+      return;
+    }
+    if (promptMode === 'manual' && !manualPrompt) {
+      window.alert('当前是手动 Prompt 模式，请填写最终模型提示词。');
+      return;
+    }
+
+    const current = useStudio.getState();
+    const incomingIds = current.edges.filter((edge) => edge.target === generator.id).map((edge) => edge.source);
+    const incoming = current.nodes.filter((node) => incomingIds.includes(node.id));
+    const inputAssetIds = incoming.map((node) => node.data.assetId).filter(isUuid);
+    const connectedUrls = incoming
+      .map((node) => String(node.data.previewUrl ?? ''))
+      .filter(isMediaReference);
+    const inlineUrls = Array.isArray(generator.data.inlineInputUrls)
+      ? generator.data.inlineInputUrls.filter((value): value is string => typeof value === 'string' && isMediaReference(value))
+      : [];
+    const inputUrls = [...connectedUrls, ...inlineUrls];
     const required = mode.inputKind === 'two-images' ? 2 : mode.inputKind === 'none' ? 0 : 1;
-    if (incoming.length < required) {
-      window.alert(`${mode.title}还缺少输入素材，请先把所需图片或视频连接到任务节点。`);
+    const realInputCount = inputAssetIds.length + inputUrls.length;
+
+    if (studio.projectId !== 'demo-project' && realInputCount < required) {
+      window.alert(`${mode.title}需要真实图片或视频。请在右侧参数面板直接上传本地素材，或连接带有可访问地址的结果节点。`);
       return;
     }
 
@@ -392,12 +439,24 @@ export default function App() {
     studio.updateNode(generator.id, { status: 'running' });
     try {
       if (studio.projectId === 'demo-project') {
+        const compiled = promptMode === 'manual'
+          ? manualPrompt
+          : rulePreview(
+              mode.id,
+              description,
+              String(generator.data.promptGuidance ?? ''),
+              Math.max(incoming.length, inlineUrls.length),
+            );
         const outputType = mode.mediaType === 'image' ? 'imageOutput' : 'videoOutput';
         const outputId = addConnectedNode(generator, outputType, {
-          title: `${mode.title}候选 V1`,
-          summary: mode.mediaType === 'image'
-            ? '演示图片候选已生成，可继续图生图或作为视频首帧。'
-            : '演示视频候选已生成，可继续延长或加入分镜时间线。',
+          title: `${mode.title} · 描述编译预览`,
+          summary: '演示模式只展示描述如何变成模型提示词，不会调用外部模型。',
+          description,
+          draftPrompt: compiled,
+          finalPrompt: compiled,
+          prompt: compiled,
+          promptSource: promptMode === 'manual' ? 'manual' : 'rule-fallback',
+          promptNotes: ['登录并配置媒体 Provider 后才会产生真实图片或视频。'],
           previewStyle: mode.mediaType === 'image' ? cameraCloseup : corridorShot,
           operation: mode.id,
           model: String(generator.data.model ?? 'Provider Adapter'),
@@ -406,24 +465,24 @@ export default function App() {
           version: 'V1',
           status: 'generated',
         });
-        studio.updateNode(generator.id, { status: 'ready' });
+        studio.updateNode(generator.id, { status: 'ready', draftPrompt: compiled, finalPrompt: compiled, promptSource: promptMode === 'manual' ? 'manual' : 'rule-fallback' });
         setSelectedId(outputId);
         return;
       }
 
       await useStudio.getState().save();
-      const inputAssetIds = incoming.map((node) => node.data.assetId).filter(isUuid);
-      const inputUrls = incoming
-        .map((node) => String(node.data.previewUrl ?? ''))
-        .filter((value) => /^https:\/\//i.test(value));
       const response = await api.generateMedia(studio.projectId, {
         nodeId: generator.id,
         mediaType: mode.mediaType,
         operation: mode.id,
-        prompt: String(generator.data.prompt ?? generator.data.summary ?? `${mode.title}任务`),
+        description,
+        promptMode,
+        promptGuidance: String(generator.data.promptGuidance ?? ''),
+        prompt: manualPrompt,
         negativePrompt: String(generator.data.negativePrompt ?? ''),
         provider: String(generator.data.provider ?? '') || undefined,
         model: String(generator.data.model ?? '') || undefined,
+        inputNodeIds: incoming.map((node) => node.id),
         inputAssetIds,
         inputUrls,
         parameters: {
@@ -452,7 +511,7 @@ export default function App() {
       });
     } finally {
       setBusy(false);
-      if (generator) studio.updateNode(generator.id, { status: 'ready' });
+      studio.updateNode(generator.id, { status: 'ready' });
     }
   };
 
@@ -494,7 +553,7 @@ export default function App() {
           <div><small>当前项目</small><strong>{projectTitle}</strong></div>
           <ChevronDown size={15} />
         </div>
-        <div className="topbar-version">GENERATION MODES V4</div>
+        <div className="topbar-version">DESCRIPTION COMPOSER V5</div>
         <div className="top-actions">
           <button
             className={`sync-state ${studio.conflict ? 'danger' : ''}`}
@@ -562,12 +621,12 @@ export default function App() {
           )}
 
           <GenerationModeBar onCreate={(operation) => createGenerationMode(operation)} />
-          <div className="canvas-mode-pill"><Layers3 size={13} /> 素材与生成血缘</div>
+          <div className="canvas-mode-pill"><Layers3 size={13} /> 描述 → Prompt → 生成结果</div>
           <div className="task-strip compact-task-strip">
-            <span><i className="task-dot image" />文/图生图</span>
-            <span><i className="task-dot video" />文/图生视频</span>
-            <span><i className="task-dot agent" />Agent Skills</span>
-            <b>侧栏移入展开 · 可固定 · 可拖拽调宽</b>
+            <span><i className="task-dot image" />文生图 / 图生图</span>
+            <span><i className="task-dot video" />文生视频 / 图生视频</span>
+            <span><i className="task-dot agent" />Prompt Composer</span>
+            <b>先写创作描述，不要求用户会写模型 Prompt</b>
           </div>
 
           {menu && (
@@ -600,7 +659,7 @@ export default function App() {
         <AssetShelf onCreate={(type, data) => addNode(type, viewportCenter(), data)} />
       </HoverEdgePanel>
 
-      <HoverEdgePanel side="right" storageKey="cineweave-inspector-panel" label="参数" defaultWidth={390} minWidth={320} maxWidth={620}>
+      <HoverEdgePanel side="right" storageKey="cineweave-inspector-panel" label="描述与参数" defaultWidth={430} minWidth={350} maxWidth={720}>
         <Inspector
           node={selected}
           inputNodes={inputNodes}

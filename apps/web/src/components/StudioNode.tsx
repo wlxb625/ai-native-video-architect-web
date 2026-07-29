@@ -7,7 +7,6 @@ import {
   FileText,
   Film,
   Image as ImageIcon,
-  Link2,
   LoaderCircle,
   MessageSquareText,
   Play,
@@ -27,9 +26,9 @@ const labels: Record<string, string> = {
   scene: '场景资产',
   referenceImage: '参考图',
   storyboard: '分镜',
-  imageGen: '生图任务',
+  imageGen: '图片生成',
   imageOutput: '图片结果',
-  videoGen: '生视频任务',
+  videoGen: '视频生成',
   videoOutput: '视频结果',
   promptPack: '提示词包',
   note: '便签',
@@ -57,20 +56,48 @@ function fallbackPreview(type: string, data: Record<string, unknown>): string {
       ? generatedAssets.characterMale
       : generatedAssets.characterFemale;
   }
-  if (type === 'scene' || type === 'referenceImage') {
-    return generatedAssets.sceneRainAlley;
-  }
-  if (['storyboard', 'imageOutput', 'videoOutput'].includes(type)) {
-    return generatedAssets.shotNeonDialogue;
-  }
+  if (type === 'scene' || type === 'referenceImage') return generatedAssets.sceneRainAlley;
+  if (['storyboard', 'imageOutput', 'videoOutput'].includes(type)) return generatedAssets.shotNeonDialogue;
   return '';
+}
+
+function GenerationPreview({ type, data }: { type: string; data: Record<string, unknown> }) {
+  const reduceMotion = useReducedMotion();
+  const status = String(data.status ?? 'draft');
+  const mode = getGenerationMode(data.operation);
+  const description = String(data.description ?? '').trim();
+  const promptMode = String(data.promptMode ?? 'auto');
+  const inputCount = Number(data.inputCount ?? 0);
+
+  return (
+    <div className={`generation-description-preview ${status}`}>
+      <div className="generation-description-head">
+        <motion.div
+          className="generation-orbit"
+          animate={reduceMotion || status !== 'running' ? undefined : { rotate: 360, scale: [1, 1.06, 1] }}
+          transition={{ rotate: { duration: 5, repeat: Infinity, ease: 'linear' }, scale: { duration: 1.8, repeat: Infinity } }}
+        >
+          {status === 'running' ? <LoaderCircle className="spin" size={19} /> : <Sparkles size={19} />}
+        </motion.div>
+        <div>
+          <strong>{mode.title}</strong>
+          <span>{promptMode === 'manual' ? '手动 Prompt' : '自动 Prompt Composer'}</span>
+        </div>
+      </div>
+      <p>{description || '选择节点后，在右侧描述想生成的内容。'}</p>
+      <div className="generation-description-meta">
+        <span>输入素材 {inputCount}</span>
+        <span>{String(data.model ?? '未选择模型')}</span>
+      </div>
+      <div className="generation-progress"><i style={{ width: status === 'running' ? '54%' : description ? '18%' : '5%' }} /></div>
+    </div>
+  );
 }
 
 function MediaPreview({ type, data }: { type: string; data: Record<string, unknown> }) {
   const reduceMotion = useReducedMotion();
   const previewUrl = String(data.previewUrl ?? '') || fallbackPreview(type, data);
   const previewStyle = String(data.previewStyle ?? '');
-  const status = String(data.status ?? 'draft');
 
   if (type === 'script') {
     return (
@@ -93,35 +120,7 @@ function MediaPreview({ type, data }: { type: string; data: Record<string, unkno
     );
   }
 
-  if (type === 'imageGen' || type === 'videoGen') {
-    const mode = getGenerationMode(data.operation);
-    const inputCount = Number(data.inputCount ?? 0);
-    const required = mode.inputKind === 'two-images' ? 2 : mode.inputKind === 'none' ? 0 : 1;
-    const inputReady = inputCount >= required;
-    return (
-      <div className={`generation-preview ${status}`}>
-        <div className="generation-mode-node-head">
-          <span>{mode.title}</span>
-          <small>{mode.mediaType === 'image' ? 'IMAGE' : 'VIDEO'}</small>
-        </div>
-        <motion.div
-          className="generation-orbit"
-          animate={reduceMotion || status !== 'running' ? undefined : { rotate: 360, scale: [1, 1.06, 1] }}
-          transition={{ rotate: { duration: 5, repeat: Infinity, ease: 'linear' }, scale: { duration: 1.8, repeat: Infinity } }}
-        >
-          {status === 'running' ? <LoaderCircle className="spin" size={24} /> : <Sparkles size={24} />}
-        </motion.div>
-        <strong>{status === 'running' ? '正在生成' : required > 0 && !inputReady ? '等待输入素材' : '可以生成'}</strong>
-        <span>{String(data.model ?? (type === 'imageGen' ? 'Image Provider' : 'Video Provider'))}</span>
-        {required > 0 && (
-          <div className={`generation-input-mini ${inputReady ? 'ready' : 'missing'}`}>
-            <Link2 size={11} />输入 {inputCount}/{required}
-          </div>
-        )}
-        <div className="generation-progress"><i style={{ width: status === 'running' ? '54%' : '8%' }} /></div>
-      </div>
-    );
-  }
+  if (type === 'imageGen' || type === 'videoGen') return <GenerationPreview type={type} data={data} />;
 
   if (type === 'videoOutput') {
     return (
@@ -160,16 +159,14 @@ export function StudioNode({ id, type, data, selected }: NodeProps) {
   const nodeData = data as Record<string, unknown>;
   const Icon = icons[nodeType] ?? FileText;
   const status = String(nodeData.status ?? 'draft');
-  const mode = nodeType === 'imageGen' || nodeType === 'videoGen' ? getGenerationMode(nodeData.operation) : undefined;
+  const generation = nodeType === 'imageGen' || nodeType === 'videoGen';
+  const mode = generation ? getGenerationMode(nodeData.operation) : undefined;
 
   return (
     <div className={`studio-node media-node node-${nodeType} ${selected ? 'is-selected' : ''}`}>
       <Handle type="target" position={Position.Left} className="node-handle" />
       <div className="media-node-head">
-        <div>
-          <span className="node-icon"><Icon size={14} /></span>
-          <span>{mode?.title ?? labels[nodeType] ?? '创作节点'}</span>
-        </div>
+        <div><span className="node-icon"><Icon size={14} /></span><span>{mode?.title ?? labels[nodeType] ?? '创作节点'}</span></div>
         <span className={`node-status ${status}`}>
           {status === 'running' ? '生成中' : status === 'ready' || status === 'generated' ? '已就绪' : '草稿'}
         </span>
@@ -177,10 +174,10 @@ export function StudioNode({ id, type, data, selected }: NodeProps) {
       <MediaPreview type={nodeType} data={nodeData} />
       <div className="media-node-copy">
         <strong>{String(nodeData.title ?? '未命名')}</strong>
-        <p>{String(nodeData.summary ?? nodeData.prompt ?? '选择节点后可在参数面板编辑。')}</p>
+        <p>{String(nodeData.summary ?? nodeData.description ?? nodeData.prompt ?? '选择节点后可编辑。')}</p>
       </div>
       <div className="media-node-meta">
-        <span>{mode?.shortTitle ?? String(nodeData.model ?? nodeData.durationSeconds ?? 'CineWeave')}</span>
+        <span>{String(nodeData.promptSource ?? nodeData.model ?? nodeData.durationSeconds ?? 'CineWeave')}</span>
         <span>#{id.slice(-5)}</span>
       </div>
       <Handle type="source" position={Position.Right} className="node-handle" />
