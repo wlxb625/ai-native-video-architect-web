@@ -7,6 +7,9 @@ import {
   Upload,
   UserRound,
 } from 'lucide-react';
+import { LayoutGroup, motion, useReducedMotion } from 'motion/react';
+import { useMemo, useState } from 'react';
+import { generatedAssets } from '../generatedAssets';
 
 export interface AssetShelfItem {
   id: string;
@@ -22,34 +25,45 @@ const demoAssets: AssetShelfItem[] = [
     kind: 'character',
     title: '林澈',
     subtitle: '主角 · 锁定造型',
-    preview:
-      'linear-gradient(145deg, rgba(64,87,116,.35), rgba(13,18,28,.96)), radial-gradient(circle at 42% 28%, #b5c4d4 0 7%, #596879 8% 18%, transparent 19%)',
+    preview: generatedAssets.characterFemale,
+  },
+  {
+    id: 'asset-chen-mo',
+    kind: 'character',
+    title: '陈默',
+    subtitle: '失踪调查员 · 参考造型',
+    preview: generatedAssets.characterMale,
   },
   {
     id: 'asset-station',
     kind: 'scene',
-    title: '末班地铁站',
-    subtitle: '冷白灯 · 雨夜',
-    preview:
-      'linear-gradient(160deg, rgba(16,25,37,.1), rgba(8,10,16,.86)), linear-gradient(12deg, #111721 0 38%, #33404d 39% 42%, #10151d 43% 100%)',
+    title: '雨夜地下通道',
+    subtitle: '冷雨 · 反光 · 空镜',
+    preview: generatedAssets.sceneRainAlley,
   },
   {
     id: 'asset-camera',
     kind: 'prop',
     title: '旧摄像机',
-    subtitle: '关键道具',
-    preview:
-      'radial-gradient(circle at 55% 48%, #536170 0 8%, #111923 9% 20%, transparent 21%), linear-gradient(135deg, #323b47, #10151d)',
+    subtitle: '关键道具 · 时间异常',
+    preview: generatedAssets.shotNeonDialogue,
   },
   {
     id: 'asset-style',
     kind: 'reference',
-    title: '冷灰现实主义',
-    subtitle: '全局视觉风格',
-    preview:
-      'linear-gradient(120deg, rgba(120,136,155,.32), transparent 45%), linear-gradient(160deg, #26313d, #0b0f15 68%)',
+    title: '克制现实主义',
+    subtitle: '低饱和 · 实景光源',
+    preview: generatedAssets.shotNeonDialogue,
   },
 ];
+
+const tabs = [
+  ['all', '全部'],
+  ['character', '人物'],
+  ['scene', '场景'],
+  ['reference', '参考'],
+  ['prop', '道具'],
+] as const;
 
 const kindIcon = {
   character: UserRound,
@@ -63,35 +77,73 @@ export function AssetShelf({
 }: {
   onCreate: (type: string, data?: Record<string, unknown>) => void;
 }) {
+  const reduceMotion = useReducedMotion();
+  const [activeKind, setActiveKind] = useState<(typeof tabs)[number][0]>('all');
+  const [query, setQuery] = useState('');
+
+  const visibleAssets = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    return demoAssets.filter((asset) => {
+      const matchesKind = activeKind === 'all' || asset.kind === activeKind;
+      const matchesQuery =
+        !keyword || `${asset.title} ${asset.subtitle}`.toLowerCase().includes(keyword);
+      return matchesKind && matchesQuery;
+    });
+  }, [activeKind, query]);
+
   return (
     <aside className="asset-shelf">
       <div className="asset-shelf-head">
         <div>
-          <span>PROJECT ASSETS</span>
-          <h2>资产库</h2>
+          <span>MEDIA BIN</span>
+          <h2>项目素材</h2>
         </div>
-        <button className="asset-add" title="上传素材">
+        <button className="asset-add" title="上传素材" aria-label="上传素材">
           <Upload size={15} />
         </button>
       </div>
 
       <div className="asset-search">
         <Search size={14} />
-        <input placeholder="搜索人物、场景、参考图" />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="搜索人物、场景、参考图"
+        />
       </div>
 
-      <div className="asset-tabs">
-        <button className="active">全部</button>
-        <button>人物</button>
-        <button>场景</button>
-        <button>参考</button>
-      </div>
+      <LayoutGroup id="asset-tabs">
+        <div className="asset-tabs">
+          {tabs.map(([id, label]) => (
+            <button
+              type="button"
+              key={id}
+              className={activeKind === id ? 'active' : ''}
+              onClick={() => setActiveKind(id)}
+            >
+              {activeKind === id && (
+                <motion.span
+                  className="asset-tab-indicator"
+                  layoutId="asset-tab-indicator"
+                  transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                />
+              )}
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </LayoutGroup>
 
-      <div className="asset-list">
-        {demoAssets.map((asset) => {
+      <motion.div className="asset-list" layoutScroll>
+        {visibleAssets.map((asset, index) => {
           const Icon = kindIcon[asset.kind];
           return (
-            <button
+            <motion.button
+              layout="position"
+              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: reduceMotion ? 0 : index * 0.035, duration: 0.2 }}
+              whileHover={reduceMotion ? undefined : { x: 3 }}
               key={asset.id}
               className="asset-card"
               onDoubleClick={() =>
@@ -102,7 +154,7 @@ export function AssetShelf({
                   {
                     title: asset.title,
                     summary: asset.subtitle,
-                    previewStyle: asset.preview,
+                    previewUrl: asset.preview,
                     assetId: asset.id,
                     status: 'ready',
                   },
@@ -111,18 +163,26 @@ export function AssetShelf({
             >
               <div
                 className="asset-thumb"
-                style={{ backgroundImage: asset.preview }}
+                style={{ backgroundImage: asset.preview ? `url(${asset.preview})` : undefined }}
               >
-                <Icon size={15} />
+                {!asset.preview && <Icon size={15} />}
+                <span className="asset-kind-icon"><Icon size={12} /></span>
               </div>
               <div>
                 <strong>{asset.title}</strong>
                 <span>{asset.subtitle}</span>
               </div>
-            </button>
+            </motion.button>
           );
         })}
-      </div>
+
+        {visibleAssets.length === 0 && (
+          <div className="asset-empty">
+            <Search size={17} />
+            <span>没有匹配的素材</span>
+          </div>
+        )}
+      </motion.div>
 
       <button
         className="asset-create"
@@ -137,7 +197,7 @@ export function AssetShelf({
         添加资产
       </button>
 
-      <div className="asset-tip">双击资产可添加到当前画布</div>
+      <div className="asset-tip">双击素材可添加到画布 · 拖拽接入将在下一阶段开放</div>
     </aside>
   );
 }
