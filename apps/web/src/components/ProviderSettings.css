@@ -1,4 +1,65 @@
+.provider-profile-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.provider-profile-tabs button {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px;
+  color: #667087;
+  background: #fafbfe;
+  text-align: left;
+}
+
+.provider-profile-tabs button.active {
+  color: var(--blue-strong);
+  border-color: #c8d1fb;
+  background: var(--blue-soft);
+}
+
+.provider-profile-tabs button > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.provider-profile-tabs strong {
+  color: inherit;
+  font-size: 8px;
+}
+
+.provider-profile-tabs small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-profile-tabs i {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mint);
+}
+
 .provider-mode-note {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   margin-bottom: 10px;
   padding: 9px;
   border: 1px solid #dce1ff;
@@ -7,4 +68,9 @@
   background: #f7f8ff;
   font-size: 8px;
   line-height: 1.6;
+}
+
+.provider-mode-note strong {
+  color: #34456d;
+  font-size: 9px;
 }

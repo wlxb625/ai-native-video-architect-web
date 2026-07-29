@@ -9,28 +9,21 @@ import {
   type GraphIR,
   type NodeExecutorContext,
 } from '@cineweave/graph-runtime';
+import { buildSkillPrompt, getAgentSkill } from '@cineweave/agent-skills';
 import {
-  buildSkillPrompt,
-  getAgentSkill,
-} from '@cineweave/agent-skills';
+  executeMediaProvider,
+  type MediaGenerationInput,
+  type ProviderConfig,
+} from './mediaProviders.js';
 
 const { Pool } = pg;
 const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL is required');
-}
+if (!databaseUrl) throw new Error('DATABASE_URL is required');
 
 const db = new Pool({ connectionString: databaseUrl, max: 8 });
 const workerId = process.env.WORKER_ID ?? `worker-${process.pid}`;
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 1200);
 const here = fileURLToPath(new URL('.', import.meta.url));
-
-interface ProviderConfig {
-  provider: string;
-  baseUrl?: string;
-  model?: string;
-  apiKey?: string;
-}
 
 interface ClaimedRun {
   id: string;
@@ -54,7 +47,7 @@ async function locate(relativePath: string) {
       await access(candidate);
       return candidate;
     } catch {
-      // Try the next runtime layout.
+      // Continue through supported runtime layouts.
     }
   }
   throw new Error(`Could not locate ${relativePath}`);
@@ -101,10 +94,7 @@ async function claimRun(): Promise<ClaimedRun | null> {
     }
     await client.query(
       `UPDATE graph_runs
-       SET status='running',
-           attempt=attempt+1,
-           locked_at=now(),
-           locked_by=$2,
+       SET status='running',attempt=attempt+1,locked_at=now(),locked_by=$2,
            started_at=COALESCE(started_at,now())
        WHERE id=$1`,
       [run.id, workerId],
@@ -119,42 +109,48 @@ async function claimRun(): Promise<ClaimedRun | null> {
   }
 }
 
-async function resolveProviderConfig(userId: string): Promise<ProviderConfig> {
+function decryptProviderRow(row: any): ProviderConfig {
+  const master = Buffer.from(process.env.APP_MASTER_KEY_BASE64 ?? '', 'base64');
+  if (master.length !== 32) {
+    throw new Error('APP_MASTER_KEY_BASE64 must decode to 32 bytes in worker');
+  }
+  const decipher = createDecipheriv(
+    'aes-256-gcm',
+    master,
+    Buffer.from(row.iv, 'base64'),
+  );
+  decipher.setAuthTag(Buffer.from(row.auth_tag, 'base64'));
+  const apiKey = Buffer.concat([
+    decipher.update(Buffer.from(row.ciphertext, 'base64')),
+    decipher.final(),
+  ]).toString('utf8');
+  return {
+    provider: String(row.provider),
+    baseUrl: String(row.base_url),
+    model: String(row.model),
+    apiKey,
+  };
+}
+
+async function resolveProviderConfig(
+  userId: string,
+  preferred: Array<string | undefined>,
+): Promise<ProviderConfig> {
   const stored = await db.query(
-    `SELECT provider,base_url,model,ciphertext,iv,auth_tag
+    `SELECT provider,base_url,model,ciphertext,iv,auth_tag,updated_at
      FROM provider_credentials
      WHERE user_id=$1
-     ORDER BY updated_at DESC
-     LIMIT 1`,
+     ORDER BY updated_at DESC`,
     [userId],
   );
-
-  if (stored.rows[0]) {
-    const master = Buffer.from(process.env.APP_MASTER_KEY_BASE64 ?? '', 'base64');
-    if (master.length !== 32) {
-      throw new Error('APP_MASTER_KEY_BASE64 must decode to 32 bytes in worker');
-    }
-    const row = stored.rows[0];
-    const decipher = createDecipheriv(
-      'aes-256-gcm',
-      master,
-      Buffer.from(row.iv, 'base64'),
-    );
-    decipher.setAuthTag(Buffer.from(row.auth_tag, 'base64'));
-    const apiKey = Buffer.concat([
-      decipher.update(Buffer.from(row.ciphertext, 'base64')),
-      decipher.final(),
-    ]).toString('utf8');
-    return {
-      provider: String(row.provider),
-      baseUrl: String(row.base_url),
-      model: String(row.model),
-      apiKey,
-    };
+  const rows = stored.rows;
+  for (const name of preferred.filter(Boolean)) {
+    const row = rows.find((item) => String(item.provider).toLowerCase() === String(name).toLowerCase());
+    if (row) return decryptProviderRow(row);
   }
-
+  if (rows[0]) return decryptProviderRow(rows[0]);
   return {
-    provider: 'environment',
+    provider: preferred.find(Boolean) ?? 'environment',
     baseUrl: process.env.MODEL_GATEWAY_BASE_URL,
     model: process.env.MODEL_GATEWAY_MODEL,
     apiKey: process.env.MODEL_GATEWAY_API_KEY,
@@ -170,140 +166,55 @@ async function callJsonModel({
   prompt: string;
   userId: string;
 }): Promise<Record<string, any>> {
-  const { baseUrl, apiKey, model } = await resolveProviderConfig(userId);
+  const provider = await resolveProviderConfig(userId, ['agent', 'llm', 'gateway']);
+  const { baseUrl, apiKey, model } = provider;
   if (!baseUrl || !apiKey || !model) {
     return {
-      title: '未配置 LLM：本地分析占位结果',
+      title: '未配置 Agent 模型',
       summary: prompt.slice(0, 180),
-      content: '请在设置中配置 OpenAI-compatible 模型网关后重新运行。',
+      content: '请在模型设置中配置 Agent / LLM Provider 后重新运行。',
       items: [
-        '当前任务已通过 GraphEngineering 工作流进入 Worker。',
-        '配置模型网关后，Agent Skill 会返回结构化 JSON。',
+        '任务已经进入 GraphEngineering Worker。',
+        '配置模型后，Skill 会返回结构化 JSON 并写回画布。',
       ],
       confidence: 0.35,
     };
   }
 
-  const response = await fetch(
-    `${baseUrl.replace(/\/$/, '')}/chat/completions`,
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.55,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: prompt },
-        ],
-      }),
+  const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`,
     },
-  );
-  if (!response.ok) {
-    throw new Error(`Model gateway returned ${response.status}`);
-  }
+    body: JSON.stringify({
+      model,
+      temperature: 0.55,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: prompt },
+      ],
+    }),
+  });
+  if (!response.ok) throw new Error(`Model gateway returned ${response.status}`);
   const body = (await response.json()) as any;
   const content = body.choices?.[0]?.message?.content ?? '{}';
   return JSON.parse(content) as Record<string, any>;
 }
 
 async function callMediaProvider(
-  input: Record<string, any>,
+  input: MediaGenerationInput,
   userId: string,
 ): Promise<Record<string, any>> {
-  const provider = await resolveProviderConfig(userId);
-  if (!provider.baseUrl || !provider.apiKey || !provider.model) {
-    return {
-      mediaType: input.mediaType,
-      operation: input.operation,
-      status: 'provider-required',
-      title: input.mediaType === 'video' ? '视频生成结果' : '图片生成结果',
-      summary: '任务结构已创建，但尚未配置媒体生成 Provider。',
-      previewUrl: null,
-      model: input.model || provider.model || 'Provider Adapter',
-    };
-  }
-
-  const baseUrl = provider.baseUrl.replace(/\/$/, '');
-  if (input.mediaType === 'image') {
-    const response = await fetch(`${baseUrl}/images/generations`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${provider.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: input.model || provider.model,
-        prompt: input.prompt,
-        n: Number(input.parameters?.variants ?? 1),
-        size: input.parameters?.size,
-        response_format: 'url',
-      }),
-    });
-    if (!response.ok) {
-      throw new Error(`Image provider returned ${response.status}`);
-    }
-    const body = (await response.json()) as any;
-    const first = body.data?.[0] ?? body.output?.[0] ?? body;
-    return {
-      mediaType: 'image',
-      operation: input.operation,
-      status: 'generated',
-      title: '图片候选 V1',
-      summary: '由媒体 Provider 返回的图片结果。',
-      previewUrl: first.url ?? first.image_url ?? null,
-      base64: first.b64_json ?? null,
-      model: input.model || provider.model,
-      raw: body,
-    };
-  }
-
-  const response = await fetch(`${baseUrl}/videos/generations`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${provider.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: input.model || provider.model,
-      prompt: input.prompt,
-      duration: input.parameters?.duration,
-      ratio: input.parameters?.ratio,
-      input_assets: input.inputAssetIds,
-    }),
-  });
-
-  if (response.status === 404 || response.status === 405) {
-    return {
-      mediaType: 'video',
-      operation: input.operation,
-      status: 'adapter-required',
-      title: '视频任务等待 Provider Adapter',
-      summary:
-        '视频 API 并无统一标准。请为 Seedance、Runway、可灵等目标服务实现对应 Adapter。',
-      previewUrl: null,
-      model: input.model || provider.model,
-    };
-  }
-  if (!response.ok) {
-    throw new Error(`Video provider returned ${response.status}`);
-  }
-  const body = (await response.json()) as any;
-  return {
-    mediaType: 'video',
-    operation: input.operation,
-    status: 'generated',
-    title: '视频候选 V1',
-    summary: '由媒体 Provider 返回的视频结果。',
-    previewUrl:
-      body.url ?? body.video_url ?? body.data?.[0]?.url ?? body.output?.url ?? null,
-    model: input.model || provider.model,
-    raw: body,
-  };
+  const preferred = [
+    input.provider,
+    input.mediaType,
+    input.mediaType === 'image' ? 'openai-image' : 'runway',
+    'gateway',
+  ];
+  const provider = await resolveProviderConfig(userId, preferred);
+  return executeMediaProvider(input, provider);
 }
 
 function flattenResultItems(result: Record<string, any>): string[] {
@@ -348,7 +259,7 @@ async function loadProjectContext(projectId: string) {
       [projectId],
     ),
     db.query(
-      `SELECT id,kind,label,metadata
+      `SELECT id,kind,label,object_key,mime_type,metadata
        FROM assets
        WHERE project_id=$1
        ORDER BY created_at DESC
@@ -364,9 +275,7 @@ async function sourcePosition(run: ClaimedRun) {
     run.input.sourceNodeId ??
     run.input.nodeId ??
     run.input.sourceNodeIds?.[0];
-  if (!sourceId) {
-    return { sourceId: null, position: { x: 0, y: 0 } };
-  }
+  if (!sourceId) return { sourceId: null, position: { x: 0, y: 0 } };
   const source = await db.query(
     `SELECT cn.position
      FROM canvas_nodes cn
@@ -399,9 +308,7 @@ async function persistCanvasOutput({
       [run.project_id],
     );
     const canvasId = canvas.rows[0]?.id;
-    if (!canvasId) {
-      throw new Error('Project canvas was not found');
-    }
+    if (!canvasId) throw new Error('Project canvas was not found');
     await client.query(
       `INSERT INTO canvas_nodes(canvas_id,client_id,node_type,position,data)
        VALUES($1,$2,$3,$4,$5)`,
@@ -409,10 +316,7 @@ async function persistCanvasOutput({
         canvasId,
         clientId,
         nodeType,
-        {
-          x: Number(source.position.x) + 430,
-          y: Number(source.position.y),
-        },
+        { x: Number(source.position.x) + 430, y: Number(source.position.y) },
         { ...data, runId: run.id },
       ],
     );
@@ -481,11 +385,9 @@ function executors(run: ClaimedRun) {
         });
         return { ...result, skillId: skill.id };
       }
-
       if (kind === 'media-generation') {
-        return callMediaProvider(run.input, run.requested_by);
+        return callMediaProvider(run.input as MediaGenerationInput, run.requested_by);
       }
-
       const prompt = [
         `Instruction: ${run.input.instruction}`,
         `Source node: ${run.input.sourceNodeId}`,
@@ -493,8 +395,7 @@ function executors(run: ClaimedRun) {
         `Assets: ${JSON.stringify(input.assets).slice(0, 6000)}`,
       ].join('\n');
       return callJsonModel({
-        system:
-          '你是一名影视创作助手。返回 JSON：title、summary、content、confidence。',
+        system: '你是一名影视创作助手。返回 JSON：title、summary、content、confidence。',
         prompt,
         userId: run.requested_by,
       });
@@ -508,9 +409,7 @@ function executors(run: ClaimedRun) {
         }
         return candidate;
       }
-      if (Object.keys(candidate).length === 0) {
-        throw new Error('Agent result was empty');
-      }
+      if (Object.keys(candidate).length === 0) throw new Error('Agent result was empty');
       return {
         ...candidate,
         verification: {
@@ -539,10 +438,7 @@ function executors(run: ClaimedRun) {
           nodeType: nodeTypeMap[skill.outputNodeType] ?? 'analysis',
           data: {
             title: verified.title ?? `${skill.title} · Agent 输出`,
-            summary:
-              verified.summary ??
-              verified.synopsis ??
-              `已完成 Skill：${skill.title}`,
+            summary: verified.summary ?? verified.synopsis ?? `已完成 Skill：${skill.title}`,
             content: JSON.stringify(verified, null, 2),
             items: flattenResultItems(verified),
             skillId: skill.id,
@@ -553,8 +449,7 @@ function executors(run: ClaimedRun) {
       }
 
       if (kind === 'media-generation') {
-        const nodeType =
-          run.input.mediaType === 'video' ? 'videoOutput' : 'imageOutput';
+        const nodeType = run.input.mediaType === 'video' ? 'videoOutput' : 'imageOutput';
         return persistCanvasOutput({
           run,
           nodeType,
@@ -564,11 +459,16 @@ function executors(run: ClaimedRun) {
             previewUrl: verified.previewUrl,
             mediaStatus: verified.status,
             operation: run.input.operation,
+            provider: verified.provider ?? run.input.provider,
+            externalJobId: verified.externalJobId,
             model: verified.model ?? run.input.model,
             prompt: run.input.prompt,
             negativePrompt: run.input.negativePrompt,
+            inputAssetIds: run.input.inputAssetIds,
+            inputUrls: run.input.inputUrls,
             ratio: run.input.parameters?.ratio,
-            duration: run.input.parameters?.duration,
+            durationSeconds: run.input.parameters?.durationSeconds,
+            parameters: run.input.parameters,
             version: 'V1',
             status: verified.status === 'generated' ? 'generated' : 'ready',
           },
@@ -594,10 +494,7 @@ async function execute(run: ClaimedRun) {
   try {
     const result = await runGraphEngineering(graph, run.input, {
       runId: run.id,
-      mode:
-        process.env.GRAPH_ENGINEERING_MODE === 'native'
-          ? 'native'
-          : 'compatible',
+      mode: process.env.GRAPH_ENGINEERING_MODE === 'native' ? 'native' : 'compatible',
       runtimePath: process.env.GRAPH_ENGINEERING_RUNTIME_PATH
         ? isAbsolute(process.env.GRAPH_ENGINEERING_RUNTIME_PATH)
           ? process.env.GRAPH_ENGINEERING_RUNTIME_PATH
@@ -614,15 +511,12 @@ async function execute(run: ClaimedRun) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const status =
-      Number(run.attempt) + 1 < Number(run.max_attempts) ? 'queued' : 'failed';
+    const status = Number(run.attempt) + 1 < Number(run.max_attempts) ? 'queued' : 'failed';
     await db.query(
       `UPDATE graph_runs
-       SET status=$2,
-           error=$3,
+       SET status=$2,error=$3,
            finished_at=CASE WHEN $2='failed' THEN now() ELSE NULL END,
-           locked_at=NULL,
-           locked_by=NULL
+           locked_at=NULL,locked_by=NULL
        WHERE id=$1`,
       [run.id, status, message],
     );
@@ -632,9 +526,6 @@ async function execute(run: ClaimedRun) {
 console.log(`[cineweave-worker] ${workerId} started`);
 for (;;) {
   const run = await claimRun();
-  if (run) {
-    await execute(run);
-  } else {
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, pollMs));
-  }
+  if (run) await execute(run);
+  else await new Promise((resolveDelay) => setTimeout(resolveDelay, pollMs));
 }
