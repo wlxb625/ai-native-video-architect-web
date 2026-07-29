@@ -126,16 +126,25 @@ export const generationParametersSchema = z.object({
   providerParameters: z.record(z.string(), z.unknown()).default({}),
 }).default({ providerParameters: {} });
 
+const mediaInputReferenceSchema = z.string().max(16_000_000).refine(
+  (value) => /^https:\/\//i.test(value) || /^data:(image|video)\/[a-z0-9.+-]+;base64,/i.test(value),
+  '输入素材必须是 HTTPS 地址或图片/视频 data URI',
+);
+
 export const mediaGenerationRunSchema = z.object({
   nodeId: z.string().min(1).max(120),
   mediaType: z.enum(['image', 'video']),
   operation: z.enum(MEDIA_GENERATION_OPERATIONS),
-  prompt: z.string().trim().min(1).max(12000),
+  description: z.string().trim().min(1, '请先填写创作描述').max(12000),
+  promptMode: z.enum(['auto', 'manual']).default('auto'),
+  promptGuidance: z.string().trim().max(6000).default(''),
+  prompt: z.string().trim().max(12000).default(''),
   negativePrompt: z.string().max(6000).default(''),
   provider: z.string().trim().max(64).optional(),
   model: z.string().trim().max(200).optional(),
+  inputNodeIds: z.array(z.string().min(1).max(120)).max(32).default([]),
   inputAssetIds: z.array(z.string().uuid()).max(16).default([]),
-  inputUrls: z.array(z.string().url().max(4096)).max(16).default([]),
+  inputUrls: z.array(mediaInputReferenceSchema).max(16).default([]),
   parameters: generationParametersSchema,
 }).superRefine((input, context) => {
   const imageOperations = new Set([
@@ -159,6 +168,9 @@ export const mediaGenerationRunSchema = z.object({
   if (videoOperations.has(input.operation) && input.mediaType !== 'video') {
     context.addIssue({ code: 'custom', path: ['mediaType'], message: '该操作必须生成视频' });
   }
+  if (input.promptMode === 'manual' && !input.prompt) {
+    context.addIssue({ code: 'custom', path: ['prompt'], message: '手动模式必须填写最终模型提示词' });
+  }
   const inputCount = input.inputAssetIds.length + input.inputUrls.length;
   const needsOneInput = [
     'image-to-image',
@@ -171,10 +183,10 @@ export const mediaGenerationRunSchema = z.object({
     'upscale',
   ];
   if (needsOneInput.includes(input.operation) && inputCount < 1) {
-    context.addIssue({ code: 'custom', path: ['inputAssetIds'], message: '该模式至少需要一个输入素材' });
+    context.addIssue({ code: 'custom', path: ['inputUrls'], message: '该模式至少需要一个真实输入素材' });
   }
   if (input.operation === 'first-last-frame-video' && inputCount < 2) {
-    context.addIssue({ code: 'custom', path: ['inputAssetIds'], message: '首尾帧生视频需要两张输入图片' });
+    context.addIssue({ code: 'custom', path: ['inputUrls'], message: '首尾帧生视频需要两张真实输入图片' });
   }
 });
 
