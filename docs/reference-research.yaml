@@ -1,0 +1,86 @@
+version: 1
+product: CineWeave media generation canvas
+experience_type: daily_product_interface
+selected_direction: daylight_post_production_desk
+references:
+  - source: Motion for React
+    url: https://motion.dev/docs/react
+    role: layout_and_state_animation
+    reviewed_behaviour:
+      - AnimatePresence enter and exit
+      - layoutId shared selection indicator
+      - useReducedMotion accessibility
+    adopted_in:
+      - apps/web/src/components/AgentPanel.tsx
+      - apps/web/src/components/AssetShelf.tsx
+      - apps/web/src/components/ProviderSettings.tsx
+      - apps/web/src/components/ContextMenu.tsx
+    transformed:
+      - limited motion to state changes inside a fixed workspace
+      - no marketing-page scroll orchestration
+    licence: MIT
+    performance_notes: transform_and_opacity_only_for_large_surfaces
+
+  - source: React Bits
+    url: https://reactbits.dev/
+    role: motion_pattern_and_spatial_background_research
+    reviewed_behaviour:
+      - shape grid and dot field establish depth
+      - spotlight cards guide pointer focus
+    adopted_in:
+      - apps/web/src/styles.css
+    transformed:
+      - implemented a static lightweight CSS grid instead of WebGL
+      - removed cursor trails, shader backgrounds and continuous bloom
+    licence: open_source_components_review_required
+    performance_notes: no_runtime_dependency_added
+
+  - source: 21st.dev animated sidebar and gallery patterns
+    url: https://21st.dev/community/components/s/sidebar
+    role: compact_navigation_and_gallery_interaction
+    reviewed_behaviour:
+      - compact category navigation
+      - responsive sidebar structure
+      - gallery item entrance and selection feedback
+    adopted_in:
+      - apps/web/src/components/AssetShelf.tsx
+      - apps/web/src/components/AgentPanel.tsx
+    transformed:
+      - rewritten for CineWeave data and semantic HTML
+      - shared indicator uses project Design Tokens
+    licence: community_component_source_must_be_reviewed
+    performance_notes: no_remote_runtime_code
+
+  - source: BentoGrids
+    url: https://bentogrids.com/
+    role: hierarchy_and_responsive_regrouping
+    reviewed_behaviour:
+      - unequal visual weight based on content importance
+      - media-first card proportions
+    adopted_in:
+      - apps/web/src/styles.css
+    transformed:
+      - used only in asset and parameter hierarchy
+      - infinite canvas remains the dominant layout
+    licence: inspiration_only
+    performance_notes: css_grid_only
+
+rejected_patterns:
+  - purple_ai_saas_gradient
+  - generic_glassmorphism
+  - webgl_background_in_long_running_workspace
+  - custom_cursor
+  - scroll_pinned_marketing_scenes
+  - equal_weight_card_wall
+
+validation:
+  desktop:
+    - keyboard_focus_visible
+    - agent_panel_interruptible
+    - canvas_drag_not_affected_by_motion
+  mobile:
+    - asset_shelf_hidden_below_820px
+    - agent_panel_full_width
+  reduced_motion:
+    - motion_hook_disables_scale_and_slide
+    - css_media_query_removes_remaining_animation
